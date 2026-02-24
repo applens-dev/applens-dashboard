@@ -1,5 +1,4 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
-import Header from "../components/Header";
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -32,8 +31,7 @@ export default function Home() {
   const contentWidth = "max-w-4xl";
 
   return (
-    <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
-      <Header />
+    <>
       <section
         className={`relative min-h-screen flex items-start pt-20 sm:pt-28 ${edgePadding} overflow-hidden`}
       >
@@ -236,6 +234,6 @@ export default function Home() {
           </p>
         </div>
       </footer>
-    </div>
+    </>
   ); 
 }
