@@ -1,4 +1,4 @@
-export default function Header() {
+export default function Header({ loggedIn, toggleLogin }: { loggedIn: boolean, toggleLogin: () => void }) {
   return (
     <header
       className="sticky top-0 z-50 border-b border-(--border)"
@@ -8,6 +8,17 @@ export default function Header() {
         <h1 className="text-sm font-medium tracking-[0.25em] text-(--text-primary) uppercase opacity-90">
           AppLens
         </h1>
+        <div className="login absolute right-8 top-3">
+          {loggedIn ? (
+            <button className="bg-white px-8 py-2 text-black font-medium hover:bg-opacity-80 transition-colors uppercase cursor-pointer" onClick={toggleLogin}>
+              Log Out
+            </button>
+          ) : (
+            <button className="bg-white px-8 py-2 text-black font-medium hover:bg-opacity-80 transition-colors uppercase cursor-pointer" onClick={toggleLogin}>
+              Log In
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
