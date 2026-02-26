@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Header from "../components/Header";
 
-export default function Home() {
+export default function Home({ loggedIn, toggleLogin }: { loggedIn: boolean, toggleLogin: () => void }) {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -33,7 +33,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
-      <Header />
+      <Header loggedIn={loggedIn} toggleLogin={toggleLogin} />
       <section
         className={`relative min-h-screen flex items-start pt-20 sm:pt-28 ${edgePadding} overflow-hidden`}
       >
