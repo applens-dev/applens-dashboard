@@ -1,4 +1,5 @@
-export default function Header({ loggedIn, toggleLogin }: { loggedIn: boolean, toggleLogin: () => void }) {
+
+export default function Header({ loggedIn, toggleLogin, title = "" }: { loggedIn: boolean, toggleLogin: () => void, title: string }) {
   return (
     <header
       className="sticky top-0 z-50 border-b border-(--border)"
@@ -11,7 +12,11 @@ export default function Header({ loggedIn, toggleLogin }: { loggedIn: boolean, t
           className="h-6 w-auto"
         />
         <h1 className="text-sm font-medium tracking-[0.25em] text-(--text-primary) uppercase opacity-90">
-          AppLens
+          {title ? (
+            `AppLens / ${title}` 
+          ) : (
+            "AppLens"
+          )}    
         </h1>
         <div className="login absolute right-8 top-3">
           {loggedIn ? (

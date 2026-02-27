@@ -33,7 +33,7 @@ export default function Home({ loggedIn, toggleLogin }: { loggedIn: boolean, tog
 
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
-      <Header loggedIn={loggedIn} toggleLogin={toggleLogin} />
+      <Header loggedIn={loggedIn} toggleLogin={toggleLogin} title="Home" />
       <section
         className={`relative min-h-screen flex items-start pt-20 sm:pt-28 ${edgePadding} overflow-hidden`}
       >
