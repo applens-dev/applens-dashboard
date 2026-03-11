@@ -114,6 +114,8 @@ section.dashboard {
   padding: 15px;
   min-height: 342px;
   width: 430px; 
+  overflow: auto;
+  max-height: 600px;
 }
 
 .vulnerability-list .vulnerability-row {
@@ -140,14 +142,33 @@ section.dashboard {
   margin-left: 5px;
 }
 
-.vulnerability-list .red-badge {
+.vulnerability-list .orange-badge {
   padding: 8px;
   border-radius: 20px;
-  background-color: rgb(235, 72, 32);
+  background-color: rgb(236, 123, 17);
   display: inline-block;
   height: 5px;
   margin-left: 5px
 }
+
+.vulnerability-list .red-badge {
+  padding: 8px;
+  border-radius: 20px;
+  background-color: rgb(228, 12, 12);
+  display: inline-block;
+  height: 5px;
+  margin-left: 5px
+}
+
+.vulnerability-list .blue-badge {
+  padding: 8px;
+  border-radius: 20px;
+  background-color: rgb(14, 37, 243);
+  display: inline-block;
+  height: 5px;
+  margin-left: 5px
+}
+
  .vulnerability-list .icon {
    float: right;
  }
