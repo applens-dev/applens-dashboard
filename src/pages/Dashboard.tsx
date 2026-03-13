@@ -5,17 +5,11 @@ import Header from "../components/Header";
 import liveInventory from "../assets/inventory.png";
 
 export default function Dashboard({loggedIn = false, toggleLogin}: {loggedIn?: boolean, toggleLogin?: () => void}) {
-  const riskScore = 50;
+  const [riskScore, setRiskScore] = useState(0);
   
   type Vulnerability = {
     color: string, cveId: string, discoveredAt: string, severity?: string; 
   }
-
-  // const vulnerabilities = [
-  //   { color: "green", name: "CVE-34678", detectedAt: "2025-10-20" },
-  //   { color: "yellow", name: "CVE-43456", detectedAt: "2026-01-20" },
-  //   { color: "red", name: "CVE-89890", detectedAt: "2026-02-10" },
-  // ];
 
   const [currentVulnerability, setVulnerability] = useState(0);
 
@@ -57,6 +51,7 @@ export default function Dashboard({loggedIn = false, toggleLogin}: {loggedIn?: b
       const data = await response.json();
       data.reverse();
       setVulnerabilityList(data);
+      setRiskScore(calculateRiskScore(data));
       console.log(data);
     } catch (error) {
       console.error("Failed to fetch vulnerabilities", error);
@@ -81,14 +76,39 @@ export default function Dashboard({loggedIn = false, toggleLogin}: {loggedIn?: b
     }
   }
 
+  const calculateRiskScore = (vulnerabilities: Vulnerability[]) => {
+    const riskScores = vulnerabilities.map((vulnerability) => {
+      if (vulnerability.severity == "Critical") {
+        return 90;
+      }
+      else if (vulnerability.severity == "High") {
+        return 70;
+      }
+      else if (vulnerability.severity == "Medium") {
+        return 50;
+      }
+      else if (vulnerability.severity == "Low") {
+        return 20;
+      }
+      else {
+        return 0;
+      }
+    });
+    let total = 0;
+    for (var i = 0; i < riskScores.length; i++) {
+      total += riskScores[i];
+    }
+    return Math.round(total / riskScores.length);
+  }
+
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
       <Header loggedIn={loggedIn} toggleLogin={toggleLogin} title="Dashboard"/>
       <section
         className={`dashboard relative min-h-screen flex flex-col items-start ${edgePadding} overflow-hidden`}
       > 
-        <h1 className="text-2xl font-bold">Welcome, {name}</h1>
-        <p> There are currently {vulnerabilityList.length} vulnerabilities you should take a look at.</p>
+        <h1 className="text-5xl font-bold mb-4">Welcome, {name}</h1>
+        <p className="vulnerability-message"> There are currently {vulnerabilityList.length} vulnerabilities you should take a look at.</p>
         <div className="column-parent">
           <div className="left-column">
             <div className={`risk-score-container ${riskScoreColor(riskScore)}`}>
@@ -97,6 +117,7 @@ export default function Dashboard({loggedIn = false, toggleLogin}: {loggedIn?: b
                 <p>{riskScore}</p>
               </div>
             </div>
+            <h3 className="vulnerability-text">Active Vulnerabilities</h3>
             <ol className="vulnerability-list"> 
               {vulnerabilityList.map((vulnerability, index) => (
                 <li className="vulnerability-row" onClick={() => updateVulnerability(index)}>
@@ -108,7 +129,9 @@ export default function Dashboard({loggedIn = false, toggleLogin}: {loggedIn?: b
             </ol>
           </div>
           <div className="right-column">
-            <p className="image-title">Live Inventory/SBOM</p>
+            <p className="image-title">
+              <button>Live Inventory/SBOM</button>
+            </p>
             <img src={liveInventory} />
             <div className="timeline">
               <p>{formatDate(vulnerabilityList[currentVulnerability]?.discoveredAt)}</p>
