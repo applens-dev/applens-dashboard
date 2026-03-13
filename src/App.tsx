@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import UseCasesPage from "./pages/UseCasesPage";
 import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
+import Dashboard from "./pages/Dashboard";
 import OnboardingLayout from "./layouts/OnboardingLayout";
 import ImportTerraformPage from "./pages/ImportTerraformPage";
 import ConnectAwsPage from "./pages/ConnectAwsPage";
@@ -15,7 +15,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/use-cases" element={<UseCasesPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/dashboard" element={<Dashboard />} />
 
       <Route
         path="/onboarding"
