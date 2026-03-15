@@ -1,8 +1,15 @@
 import { Link } from "react-router-dom";
+import { useState, type ChangeEvent } from "react";
 import { useOnboarding } from "../context/OnboardingContext";
 
 export default function ConnectAwsPage() {
   const { state, setAwsConnected } = useOnboarding();
+
+  const [clientKey, setClientKey] = useState("");
+
+  const handleClientKeyChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setClientKey(e.target.value);
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-10 sm:px-16 lg:px-20 pt-28">
@@ -11,9 +18,16 @@ export default function ConnectAwsPage() {
       </h2>
 
       <p className="text-sm text-(--text-secondary) font-light leading-relaxed mb-10">
-        Tutorial for connecting AppLens to your AWS environment goes here.
-        For Sprint 1 MVP, this page is a placeholder to match the design flow.
+        Connect to your AWS account by setting up an IAM role to allow AppLens access to your app. Then, enter the client key and secret key for IAM role below. 
       </p>
+
+      <form>
+        <label>
+          Client Key
+          <input name="client_key" onChange={handleClientKeyChange} value={clientKey} />
+        </label>
+        <input name="secret_key" />
+      </form>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <button
