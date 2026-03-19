@@ -39,6 +39,36 @@ body {
   mask-image: linear-gradient(to left, black 0%, transparent 96%);
 }
 
+/* 
+=============================================================================================
+Connect AWS Page 
+=============================================================================================
+*/
+
+#connect-aws-form {
+  display: block;
+  padding: 30px 0px;
+}
+
+#connect-aws-form label {
+  display: block;
+  padding: 20px 0px;
+}
+
+#connect-aws-form input {
+  background-color: white;
+  color: black;
+  margin-left: 15px;
+  padding-left: 5px;
+}
+
+
+/* 
+=============================================================================================
+Dashboard Page 
+=============================================================================================
+*/
+
 section.dashboard {
   /* padding-top: 50px; */
   padding-top: 30px;

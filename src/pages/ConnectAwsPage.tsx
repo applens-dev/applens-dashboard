@@ -6,10 +6,26 @@ export default function ConnectAwsPage() {
   const { state, setAwsConnected } = useOnboarding();
 
   const [clientKey, setClientKey] = useState("");
-
+  const [secretKey, setSecretKey] = useState("");
+  
   const handleClientKeyChange = (e: ChangeEvent<HTMLInputElement>) => {
     setClientKey(e.target.value);
   }
+
+  const handleSecretKeyChange = (e : ChangeEvent<HTMLInputElement>) => {
+    setSecretKey(e.target.value);
+  }
+
+  const handleSubmit = () => {
+    const payload = {
+      clientKey,
+      secretKey,
+    };
+    console.log(payload);
+    // TODO: Send credentials to the API using fetch
+    setAwsConnected(true);
+  }
+
 
   return (
     <div className="max-w-4xl mx-auto px-10 sm:px-16 lg:px-20 pt-28">
@@ -17,22 +33,25 @@ export default function ConnectAwsPage() {
         Connect AWS
       </h2>
 
-      <p className="text-sm text-(--text-secondary) font-light leading-relaxed mb-10">
+      <p className="text-sm text-(--text-secondary) font-light leading-relaxed">
         Connect to your AWS account by setting up an IAM role to allow AppLens access to your app. Then, enter the client key and secret key for IAM role below. 
       </p>
 
-      <form>
+      <form id="connect-aws-form">
         <label>
           Client Key
           <input name="client_key" onChange={handleClientKeyChange} value={clientKey} />
         </label>
-        <input name="secret_key" />
+        <label>
+          Secret Key
+          <input name="secret_key" onChange={handleSecretKeyChange} value={secretKey} />
+        </label>
       </form>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <button
           type="button"
-          onClick={() => setAwsConnected(true)}
+          onClick={handleSubmit}
           className="px-7 py-3 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100"
         >
           Mark AWS Connected (demo)
