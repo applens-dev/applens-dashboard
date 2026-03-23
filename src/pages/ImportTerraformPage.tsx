@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth0 } from "@auth0/auth0-react";
 import { presignTerraformUpload, uploadFileToPresignedUrl } from "../api/uploads";
 import { useOnboarding } from "../context/OnboardingContext";
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB (Sprint 1 MVP design)
+const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 function prettyBytes(bytes: number) {
   const units = ["B", "KB", "MB", "GB"];
@@ -31,6 +32,7 @@ function isTerraformLikeFile(file: File) {
 export default function ImportTerraformPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { state, setTerraformUpload } = useOnboarding();
+  const { getAccessTokenSilently, isAuthenticated, loginWithRedirect } = useAuth0();
 
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -51,11 +53,13 @@ export default function ImportTerraformPage() {
       setFile(null);
       return;
     }
+
     if (!isTerraformLikeFile(next)) {
       setError("Unsupported file type. Use .tf, .tfvars, .zip, .tar, .tgz.");
       setFile(null);
       return;
     }
+
     setError(null);
     setFile(next);
   }
@@ -67,23 +71,44 @@ export default function ImportTerraformPage() {
     }
 
     try {
+      setError(null);
       setStatus("presigning");
       setProgress(0);
 
-      const presign = await presignTerraformUpload({
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
+      if (!isAuthenticated) {
+        await loginWithRedirect({
+          appState: {
+            returnTo: "/onboarding/import-terraform",
+          },
+        });
+        return;
+      }
+
+      const accessToken = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+        },
       });
+
+      const presign = await presignTerraformUpload(
+        {
+          filename: file.name,
+          contentType: file.type || "application/octet-stream",
+        },
+        accessToken,
+      );
 
       setStatus("uploading");
 
-      await uploadFileToPresignedUrl({
-        url: presign.url,
-        file,
-        onProgress: (p) => setProgress(p),
+      await uploadFileToPresignedUrl(presign.url, file, (p: number) => {
+        setProgress(p);
       });
 
-      setTerraformUpload({ key: presign.s3Key, filename: file.name });
+      setTerraformUpload({
+        key: presign.s3Key,
+        filename: file.name,
+      });
+
       setStatus("done");
     } catch (e: any) {
       setStatus("idle");
@@ -98,6 +123,7 @@ export default function ImportTerraformPage() {
         <h2 className="text-3xl sm:text-4xl font-semibold text-(--text-primary) mb-2">
           Upload your <span className="font-semibold">Terraform</span> files below.
         </h2>
+
         <p className="text-sm text-(--text-secondary) font-light mb-10">
           Note that your IaC files must be below 10 MB.
         </p>
@@ -160,10 +186,10 @@ export default function ImportTerraformPage() {
                 {status === "presigning"
                   ? "Preparing..."
                   : status === "uploading"
-                    ? `Uploading ${progress}%`
-                    : status === "done"
-                      ? "Uploaded"
-                      : "Upload"}
+                  ? `Uploading ${progress}%`
+                  : status === "done"
+                  ? "Uploaded"
+                  : "Upload"}
               </button>
             </div>
 
@@ -186,6 +212,7 @@ export default function ImportTerraformPage() {
             <p className="text-sm text-(--text-primary) mb-2">
               ✅ Uploaded: <span className="font-medium">{state.terraformFilename}</span>
             </p>
+
             <p className="text-xs text-(--text-muted) break-all">
               S3 key: {state.terraformUploadKey}
             </p>
@@ -197,11 +224,12 @@ export default function ImportTerraformPage() {
               >
                 Continue to Connect AWS
               </Link>
+
               <Link
                 to="/dashboard"
                 className="inline-flex justify-center px-7 py-3 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40 opacity-90 hover:opacity-100"
               >
-                Skip to Dashboard (demo)
+                Skip to Dashboard
               </Link>
             </div>
           </div>
