@@ -9,20 +9,38 @@ export type PresignUploadResponse = {
   s3Key: string;
 };
 
+export type UploadJob = {
+  userId: string;
+  uploadId: string;
+  status: string;
+  bucket: string;
+  sourceKey: string;
+  planKey: string | null;
+  graphKey: string | null;
+  buildId: string | null;
+  lastError: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.toString().replace(/\/$/, "") ||
   "http://localhost:8080";
 
-function buildHeaders(accessToken?: string): HeadersInit {
+function buildHeaders(accessToken: string): HeadersInit {
+  if (!accessToken) {
+    throw new Error("Missing access token for authenticated upload request.");
+  }
+
   return {
     "Content-Type": "application/json",
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    Authorization: `Bearer ${accessToken}`,
   };
 }
 
 export async function presignTerraformUpload(
   req: PresignUploadRequest,
-  accessToken?: string,
+  accessToken: string,
 ): Promise<PresignUploadResponse> {
   const res = await fetch(`${API_BASE_URL}/api/uploads/presign`, {
     method: "POST",
@@ -32,24 +50,63 @@ export async function presignTerraformUpload(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Presign failed (${res.status}): ${text || res.statusText}`);
+    throw new Error(
+      `Presign failed (${res.status}): ${text || res.statusText}`,
+    );
   }
 
   return (await res.json()) as PresignUploadResponse;
+}
+
+export async function completeTerraformUpload(
+  uploadId: string,
+  payload: { s3Key: string },
+  accessToken: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/uploads/${uploadId}/complete`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Complete upload failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+}
+
+export async function getUploads(accessToken: string): Promise<UploadJob[]> {
+  const res = await fetch(`${API_BASE_URL}/api/uploads/`, {
+    method: "GET",
+    headers: buildHeaders(accessToken),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Get uploads failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+
+  return (await res.json()) as UploadJob[];
 }
 
 export async function uploadFileToPresignedUrl(
   url: string,
   file: File,
   onProgress?: (percent: number) => void,
+  contentType?: string,
 ): Promise<void> {
-  const contentType = file.type || "application/octet-stream";
+  const resolvedContentType =
+    contentType || file.type || "application/octet-stream";
 
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
     xhr.open("PUT", url, true);
-    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.setRequestHeader("Content-Type", resolvedContentType);
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
@@ -89,7 +146,9 @@ export async function getCurrentUser(accessToken: string) {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Get current user failed (${res.status}): ${text || res.statusText}`);
+    throw new Error(
+      `Get current user failed (${res.status}): ${text || res.statusText}`,
+    );
   }
 
   return res.json();

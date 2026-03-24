@@ -3,6 +3,7 @@ import LandingPage from "./pages/LandingPage";
 import UseCasesPage from "./pages/UseCasesPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import UploadsPage from "./pages/UploadsPage";
 import OnboardingLayout from "./layouts/OnboardingLayout";
 import ImportTerraformPage from "./pages/ImportTerraformPage";
 import ConnectAwsPage from "./pages/ConnectAwsPage";
@@ -22,6 +23,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/uploads"
+        element={
+          <ProtectedRoute>
+            <UploadsPage />
           </ProtectedRoute>
         }
       />

@@ -2,13 +2,23 @@ import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth0 } from "@auth0/auth0-react";
 import {
+  completeTerraformUpload,
   presignTerraformUpload,
   uploadFileToPresignedUrl,
 } from "../api/uploads";
 import { useOnboarding } from "../context/OnboardingContext";
-import { CloudUpload } from "lucide-react";
+import { CheckSquare, CloudUpload } from "lucide-react";
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const SUPPORTED_FILE_TYPES: Record<string, string> = {
+  ".tf": "text/plain",
+  ".tfvars": "text/plain",
+  ".zip": "application/zip",
+  ".tar": "application/x-tar",
+  ".tgz": "application/gzip",
+  ".tar.gz": "application/gzip",
+};
 
 function prettyBytes(bytes: number) {
   const units = ["B", "KB", "MB", "GB"];
@@ -22,15 +32,17 @@ function prettyBytes(bytes: number) {
 }
 
 function isTerraformLikeFile(file: File) {
-  const name = file.name.toLowerCase();
-  return (
-    name.endsWith(".tf") ||
-    name.endsWith(".tfvars") ||
-    name.endsWith(".zip") ||
-    name.endsWith(".tar") ||
-    name.endsWith(".tar.gz") ||
-    name.endsWith(".tgz")
+  return getSupportedContentType(file.name) !== null;
+}
+
+function getSupportedContentType(filename: string): string | null {
+  const name = filename.toLowerCase();
+  const suffixes = Object.keys(SUPPORTED_FILE_TYPES).sort(
+    (a, b) => b.length - a.length,
   );
+
+  const matchedSuffix = suffixes.find((suffix) => name.endsWith(suffix));
+  return matchedSuffix ? SUPPORTED_FILE_TYPES[matchedSuffix] : null;
 }
 
 export default function ImportTerraformPage() {
@@ -97,19 +109,33 @@ export default function ImportTerraformPage() {
         },
       });
 
+      const contentType =
+        getSupportedContentType(file.name) || "application/octet-stream";
+
       const presign = await presignTerraformUpload(
         {
           filename: file.name,
-          contentType: file.type || "application/octet-stream",
+          contentType,
         },
         accessToken,
       );
 
       setStatus("uploading");
 
-      await uploadFileToPresignedUrl(presign.url, file, (p: number) => {
-        setProgress(p);
-      });
+      await uploadFileToPresignedUrl(
+        presign.url,
+        file,
+        (p: number) => {
+          setProgress(p);
+        },
+        contentType,
+      );
+
+      await completeTerraformUpload(
+        presign.uploadId,
+        { s3Key: presign.s3Key },
+        accessToken,
+      );
 
       setTerraformUpload({
         key: presign.s3Key,
@@ -206,6 +232,7 @@ export default function ImportTerraformPage() {
             <input
               ref={fileInputRef}
               type="file"
+              accept=".tf,.tfvars,.zip,.tar,.tgz,.tar.gz"
               className="hidden"
               onChange={(e) => {
                 const picked = e.target.files?.[0];
@@ -219,8 +246,8 @@ export default function ImportTerraformPage() {
 
         {status === "done" && state.terraformUploadKey && (
           <div className="mt-8 border border-(--border) bg-white/2 rounded-xl p-5">
-            <p className="text-sm text-(--text-primary) mb-2">
-              ✅ Uploaded:{" "}
+            <p className="text-sm text-(--text-primary) mb-2 flex gap-2 items-center">
+              <CheckSquare className="w-4 h-4 text-green-500" /> Uploaded:
               <span className="font-medium">{state.terraformFilename}</span>
             </p>
 

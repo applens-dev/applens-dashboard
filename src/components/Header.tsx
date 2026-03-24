@@ -21,7 +21,8 @@ export default function Header({
 
   const inOnboarding = location.pathname.startsWith("/onboarding");
   const inDashboard = location.pathname.startsWith("/dashboard");
-  const inAppFlow = inOnboarding || inDashboard;
+  const inUploads = location.pathname.startsWith("/uploads");
+  const inAppFlow = inOnboarding || inDashboard || inUploads;
 
   const brandText =
     title.trim().length > 0 ? `AppLens / ${title.trim()}` : "AppLens";
