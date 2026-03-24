@@ -32,9 +32,138 @@ body {
   min-height: 100vh;
 }
 
+.dashboard-grid-bg {
+  background-image:
+    linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px
+    );
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 82% 62% at 52% 46%,
+    black 42%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 82% 62% at 52% 46%,
+    black 42%,
+    transparent 100%
+  );
+}
+
 .hero-pattern {
   background-color: transparent;
   background-image: url("./assets/floating-cogs.svg");
   -webkit-mask-image: linear-gradient(to left, black 0%, transparent 96%);
   mask-image: linear-gradient(to left, black 0%, transparent 96%);
+}
+
+@keyframes dashboard-edge-dash {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+.react-flow__edge.dashboard-flow-edge .react-flow__edge-path {
+  animation: dashboard-edge-dash 0.9s linear infinite;
+}
+
+.dashboard-flow-canvas .react-flow__edge.dashboard-flow-edge-has-threat .react-flow__edge-path {
+  stroke: rgba(251, 113, 133, 0.95);
+  stroke-width: 2.2;
+}
+
+.dashboard-flow-canvas .react-flow__edge.dashboard-flow-edge-selected .react-flow__edge-path {
+  stroke-width: 2.8;
+  filter: drop-shadow(0 0 4px rgba(244, 63, 94, 0.55));
+}
+
+.dashboard-flow-canvas .react-flow__edge.dashboard-flow-edge-dimmed {
+  opacity: 0.32;
+}
+
+.dashboard-flow-canvas .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes dashboard-node-select-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(244, 63, 94, 0.45),
+      0 16px 30px rgba(0, 0, 0, 0.35);
+  }
+  70% {
+    box-shadow:
+      0 0 0 10px rgba(244, 63, 94, 0),
+      0 20px 36px rgba(0, 0, 0, 0.45);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(244, 63, 94, 0),
+      0 16px 30px rgba(0, 0, 0, 0.35);
+  }
+}
+
+.dashboard-flow-canvas .react-flow__node.dashboard-flow-node {
+  transition:
+    opacity 180ms ease,
+    filter 180ms ease;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.dashboard-flow-canvas .react-flow__node.dashboard-flow-node-has-threat {
+  background-color: rgba(185, 28, 28, 0.42);
+}
+
+.dashboard-flow-canvas .react-flow__node.dashboard-flow-node-selected {
+  transform: translateY(-3px) scale(1.03);
+  z-index: 20;
+  filter: saturate(1.12);
+  animation: dashboard-node-select-pulse 1.4s ease-out infinite;
+}
+
+.dashboard-flow-canvas .react-flow__node.dashboard-flow-node-dimmed {
+  opacity: 0.52;
+  filter: grayscale(0.18) saturate(0.8);
+}
+
+.dashboard-flow-canvas .react-flow__node.dragging {
+  transition: none !important;
+  animation: none !important;
+}
+
+@keyframes dashboard-expand-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dashboard-expand-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dashboard-expand-backdrop {
+  animation: dashboard-expand-backdrop-in 180ms ease-out;
+}
+
+.dashboard-expand-panel {
+  animation: dashboard-expand-panel-in 220ms ease-out;
 }
