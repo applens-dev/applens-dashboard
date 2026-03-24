@@ -45,7 +45,10 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/onboarding/import-terraform" replace />} />
+        <Route
+          index
+          element={<Navigate to="/onboarding/import-terraform" replace />}
+        />
         <Route path="import-terraform" element={<ImportTerraformPage />} />
         <Route path="connect-aws" element={<ConnectAwsPage />} />
         <Route path="set-context" element={<SetContextPage />} />
