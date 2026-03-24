@@ -17,6 +17,7 @@ import graphData from "../../data/strideGraph.json";
 
 type ThreatItem = {
   stride?: string;
+  category?: string;
   title?: string;
   description?: string;
   mitigations?: string[];
@@ -72,6 +73,14 @@ const THREAT_SURFACE_COLORS: Record<string, string> = {
   iam: "#38bdf8",
   build: "#a78bfa",
 };
+const THREAT_SURFACE_LEGEND = [
+  { label: "Public", color: THREAT_SURFACE_COLORS.public },
+  { label: "Internal", color: THREAT_SURFACE_COLORS.internal },
+  { label: "Network", color: THREAT_SURFACE_COLORS.network },
+  { label: "IAM", color: THREAT_SURFACE_COLORS.iam },
+  { label: "Build", color: THREAT_SURFACE_COLORS.build },
+  { label: "Unknown", color: "rgba(255,255,255,0.5)" },
+];
 
 function getNodeThreats(node: RawGraphNode): ThreatItem[] {
   return node.threats ?? node.data.threats ?? [];
@@ -87,58 +96,80 @@ function normalizeStrideFlags(
     .map(([flag]) => flag);
 }
 
-const baseNodes: Node[] = typedGraphData.nodes.map((node) => ({
-  id: node.id,
-  className: "dashboard-flow-node",
-  position: node.position,
-  data: {
-    label: node.data.shortType ?? node.data.label ?? node.id,
-    threatCount: getNodeThreats(node).length,
-    threats: getNodeThreats(node),
-    strideFlags: normalizeStrideFlags(node.data.strideFlags),
-  },
-  style: {
-    background: "#101216",
-    color: "#ebebeb",
-    border: `1px solid ${
-      THREAT_SURFACE_COLORS[node.data.threatSurface ?? ""] ??
-      "rgba(255,255,255,0.18)"
-    }`,
-    borderRadius: "8px",
-    padding: "10px 14px",
-    fontSize: "12px",
-  },
-}));
+const baseNodes: Node[] = typedGraphData.nodes.map((node) => {
+  const nodeThreats = getNodeThreats(node);
 
-const edges: Edge[] = typedGraphData.edges.map((edge) => ({
-  id: edge.id,
-  source: edge.source,
-  target: edge.target,
-  className: "dashboard-flow-edge",
-  label: edge.data?.trustBoundary
-    ? `${edge.data.relationshipType?.replaceAll("_", " ")} • boundary`
-    : edge.data?.relationshipType?.replaceAll("_", " "),
-  labelShowBg: true,
-  labelBgPadding: [6, 3],
-  labelBgBorderRadius: 6,
-  labelBgStyle: {
-    fill: "#0f0f0f",
-    fillOpacity: 0.95,
-  },
-  labelStyle: { fill: "rgba(235,235,235,0.9)", fontSize: 10 },
-  style: {
-    stroke: edge.data?.trustBoundary ? "#f59e0b" : "rgba(255,255,255,0.45)",
-    strokeWidth: edge.data?.trustBoundary ? 2 : 1.2,
-    strokeDasharray: "8 6",
-    strokeDashoffset: 0,
-  },
-  markerEnd: { type: MarkerType.ArrowClosed, color: "rgba(255,255,255,0.6)" },
-  data: {
-    boundaryThreats: edge.data?.boundaryThreats ?? [],
-    trustBoundary: edge.data?.trustBoundary ?? false,
-    relationshipType: edge.data?.relationshipType ?? "",
-  },
-}));
+  return {
+    id: node.id,
+    className: "dashboard-flow-node",
+    position: node.position,
+    data: {
+      label: node.data.shortType ?? node.data.label ?? node.id,
+      threatCount: nodeThreats.length,
+      threats: nodeThreats,
+      strideFlags: normalizeStrideFlags(node.data.strideFlags),
+    },
+    style: {
+      background: "#101216",
+      color: "#ebebeb",
+      border: `1px solid ${
+        THREAT_SURFACE_COLORS[node.data.threatSurface ?? ""] ??
+        "rgba(255,255,255,0.18)"
+      }`,
+      borderRadius: "8px",
+      padding: "10px 14px",
+      fontSize: "12px",
+    },
+  };
+});
+
+const edges: Edge[] = typedGraphData.edges.map((edge) => {
+  const hasBoundaryThreats = (edge.data?.boundaryThreats?.length ?? 0) > 0;
+
+  return {
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    className: "dashboard-flow-edge",
+    label: edge.data?.relationshipType?.replaceAll("_", " "),
+    labelShowBg: true,
+    labelBgPadding: [6, 3],
+    labelBgBorderRadius: 6,
+    labelBgStyle: {
+      fill: hasBoundaryThreats ? "#2a1116" : "#0f0f0f",
+      fillOpacity: 0.95,
+    },
+    labelStyle: {
+      fill: hasBoundaryThreats
+        ? "rgba(251, 191, 201, 0.95)"
+        : "rgba(235,235,235,0.9)",
+      fontSize: 10,
+    },
+    style: {
+      stroke: hasBoundaryThreats
+        ? "#fb7185"
+        : edge.data?.trustBoundary
+          ? "#f59e0b"
+          : "rgba(255,255,255,0.45)",
+      strokeWidth: hasBoundaryThreats
+        ? 2.6
+        : edge.data?.trustBoundary
+          ? 2
+          : 1.2,
+      strokeDasharray: hasBoundaryThreats ? "4 4" : "8 6",
+      strokeDashoffset: 0,
+    },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: hasBoundaryThreats ? "#fb7185" : "rgba(255,255,255,0.6)",
+    },
+    data: {
+      boundaryThreats: edge.data?.boundaryThreats ?? [],
+      trustBoundary: edge.data?.trustBoundary ?? false,
+      relationshipType: edge.data?.relationshipType ?? "",
+    },
+  };
+});
 
 function getLayoutedNodes(nodes: Node[], edges: Edge[]) {
   const graph = new dagre.graphlib.Graph();
@@ -177,7 +208,10 @@ function getLayoutedNodes(nodes: Node[], edges: Edge[]) {
 export default function DashboardGraph() {
   const [showMetadata, setShowMetadata] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedContext, setSelectedContext] = useState<{
+    kind: "node" | "edge";
+    id: string;
+  } | null>(null);
   const [activeThreatContext, setActiveThreatContext] = useState<{
     kind: "node" | "edge";
     label: string;
@@ -203,8 +237,9 @@ export default function DashboardGraph() {
   const renderedNodes = useMemo(
     () =>
       flowNodes.map((node) => {
-        const isSelected = selectedNodeId === node.id;
-        const isDimmed = Boolean(selectedNodeId) && !isSelected;
+        const isSelected =
+          selectedContext?.kind === "node" && selectedContext.id === node.id;
+        const isDimmed = selectedContext?.kind === "node" && !isSelected;
         return {
           ...node,
           className: [
@@ -216,11 +251,36 @@ export default function DashboardGraph() {
             .join(" "),
         };
       }),
-    [flowNodes, selectedNodeId],
+    [flowNodes, selectedContext],
+  );
+
+  const renderedEdges = useMemo(
+    () =>
+      flowEdges.map((edge) => {
+        const boundaryThreats =
+          (edge.data?.boundaryThreats as ThreatItem[] | undefined) ?? [];
+        const hasBoundaryThreats =
+          Boolean(edge.data?.trustBoundary) && boundaryThreats.length > 0;
+        const isSelected =
+          selectedContext?.kind === "edge" && selectedContext.id === edge.id;
+        const isDimmed = selectedContext?.kind === "edge" && !isSelected;
+        return {
+          ...edge,
+          className: [
+            "dashboard-flow-edge",
+            hasBoundaryThreats ? "dashboard-flow-edge-has-threat" : "",
+            isSelected ? "dashboard-flow-edge-selected" : "",
+            isDimmed ? "dashboard-flow-edge-dimmed" : "",
+          ]
+            .filter(Boolean)
+            .join(" "),
+        };
+      }),
+    [flowEdges, selectedContext],
   );
 
   const onNodeMouseEnter: NodeMouseHandler = (_event, node) => {
-    if (selectedNodeId) return;
+    if (selectedContext) return;
     const threats = (node.data?.threats as ThreatItem[] | undefined) ?? [];
     if (threats.length === 0) {
       setActiveThreatContext(null);
@@ -239,12 +299,12 @@ export default function DashboardGraph() {
   };
 
   const onNodeMouseLeave: NodeMouseHandler = () => {
-    if (selectedNodeId) return;
+    if (selectedContext) return;
     setActiveThreatContext(null);
   };
 
   const onEdgeMouseEnter: EdgeMouseHandler = (_event, edge) => {
-    if (selectedNodeId) return;
+    if (selectedContext) return;
     const threats =
       (edge.data?.boundaryThreats as ThreatItem[] | undefined) ?? [];
     const isTrustBoundary = Boolean(edge.data?.trustBoundary);
@@ -262,20 +322,20 @@ export default function DashboardGraph() {
   };
 
   const onEdgeMouseLeave: EdgeMouseHandler = () => {
-    if (selectedNodeId) return;
+    if (selectedContext) return;
     setActiveThreatContext(null);
   };
 
   const onNodeClick: NodeMouseHandler = (_event, node) => {
     const threats = (node.data?.threats as ThreatItem[] | undefined) ?? [];
     if (threats.length === 0) {
-      setSelectedNodeId(null);
+      setSelectedContext(null);
       setActiveThreatContext(null);
       return;
     }
 
-    if (selectedNodeId === node.id) {
-      setSelectedNodeId(null);
+    if (selectedContext?.kind === "node" && selectedContext.id === node.id) {
+      setSelectedContext(null);
       setActiveThreatContext(null);
       return;
     }
@@ -284,7 +344,7 @@ export default function DashboardGraph() {
       .filter(Boolean)
       .join(", ");
 
-    setSelectedNodeId(node.id);
+    setSelectedContext({ kind: "node", id: node.id });
     setActiveThreatContext({
       kind: "node",
       label: String(node.data?.label ?? node.id),
@@ -293,8 +353,33 @@ export default function DashboardGraph() {
     });
   };
 
+  const onEdgeClick: EdgeMouseHandler = (_event, edge) => {
+    const threats =
+      (edge.data?.boundaryThreats as ThreatItem[] | undefined) ?? [];
+    const isTrustBoundary = Boolean(edge.data?.trustBoundary);
+    if (!isTrustBoundary || threats.length === 0) {
+      setSelectedContext(null);
+      setActiveThreatContext(null);
+      return;
+    }
+
+    if (selectedContext?.kind === "edge" && selectedContext.id === edge.id) {
+      setSelectedContext(null);
+      setActiveThreatContext(null);
+      return;
+    }
+
+    setSelectedContext({ kind: "edge", id: edge.id });
+    setActiveThreatContext({
+      kind: "edge",
+      label: `${edge.source} -> ${edge.target}`,
+      subtitle: "Trust boundary threats",
+      threats,
+    });
+  };
+
   const onPaneClick = () => {
-    setSelectedNodeId(null);
+    setSelectedContext(null);
     setActiveThreatContext(null);
   };
 
@@ -332,10 +417,11 @@ export default function DashboardGraph() {
         <ReactFlow
           className="dashboard-flow-canvas"
           nodes={renderedNodes}
-          edges={flowEdges}
+          edges={renderedEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
           onPaneClick={onPaneClick}
           onNodeMouseEnter={onNodeMouseEnter}
           onNodeMouseLeave={onNodeMouseLeave}
@@ -378,7 +464,8 @@ export default function DashboardGraph() {
                 className="rounded-lg border border-rose-300/20 bg-white/5 px-2.5 py-2"
               >
                 <p className="text-[11px] font-semibold text-rose-100/95">
-                  [{threat.stride ?? "?"}] {threat.title ?? "Untitled threat"}
+                  [{threat.category?.[0] ?? "?"}]{" "}
+                  {threat.title ?? "Untitled threat"}
                 </p>
                 <p className="mt-1 text-[11px] text-rose-50/90">
                   {threat.description ?? "No description provided."}
@@ -496,12 +583,34 @@ export default function DashboardGraph() {
           )}
         </aside>
       )}
+
+      {expanded && (
+        <aside className="absolute bottom-3 left-3 z-10 rounded-xl border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3">
+          <h4 className="text-[10px] tracking-[0.14em] uppercase text-white/70 font-semibold">
+            Legend
+          </h4>
+          <div className="mt-2 space-y-1.5">
+            {THREAT_SURFACE_LEGEND.map((item) => (
+              <div key={item.label} className="flex items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-[11px] text-white/85">{item.label}</span>
+              </div>
+            ))}
+            <div className="pt-1 mt-1 border-t border-white/10 text-[10px] text-white/60">
+              Subtle glow indicates active threats on nodes or boundaries.
+            </div>
+          </div>
+        </aside>
+      )}
     </div>
   );
 
   return (
     <>
-      {isExpanded && (
+      {isExpanded &&
         createPortal(
           <div
             className="dashboard-expand-backdrop fixed inset-0 z-[90] bg-black/75 backdrop-blur-sm p-4 sm:p-6 lg:p-8"
@@ -513,11 +622,9 @@ export default function DashboardGraph() {
             >
               {renderGraphCard(true)}
             </div>
-          </div>
-          ,
+          </div>,
           document.body,
-        )
-      )}
+        )}
 
       {!isExpanded && renderGraphCard(false)}
     </>
