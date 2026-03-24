@@ -1,12 +1,11 @@
 import type React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 
 type HeaderProps = {
   title?: string;
 
   loggedIn?: boolean;
   toggleLogin?: () => void;
-
 
   rightAction?: React.ReactNode;
 };
@@ -21,12 +20,20 @@ export default function Header({
 
   const inOnboarding = location.pathname.startsWith("/onboarding");
   const inDashboard = location.pathname.startsWith("/dashboard");
-  const inAppFlow = inOnboarding || inDashboard;
+  const inUploads = location.pathname.startsWith("/uploads");
+  const inAppFlow = inOnboarding || inDashboard || inUploads;
 
   const brandText =
     title.trim().length > 0 ? `AppLens / ${title.trim()}` : "AppLens";
 
-  const AuthButton = ({ variant }: { variant: "login" | "logout" }) => {
+  const appNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `text-xs font-medium tracking-[0.12em] uppercase ${
+      isActive
+        ? "text-(--text-primary)"
+        : "text-(--text-secondary) hover:text-(--text-primary)"
+    }`;
+
+  const renderAuthButton = (variant: "login" | "logout") => {
     const isLogout = variant === "logout";
     const label = isLogout ? "Log Out" : "Log In";
 
@@ -62,13 +69,28 @@ export default function Header({
       style={{ backgroundColor: "#141414" }}
     >
       <div className="pl-10 sm:pl-16 lg:pl-28 pr-8 sm:pr-12 lg:pr-20 py-6 flex items-center justify-between gap-6">
-        <Link to="/" className="flex items-center gap-3">
-          <img src="/applens-logo.svg" alt="AppLens" className="h-6 w-auto" />
-          <span className="text-sm font-medium tracking-[0.25em] text-(--text-primary) uppercase opacity-90 hover:opacity-100">
-            {brandText}
-            {inDashboard && !title ? " / Dashboard" : ""}
-          </span>
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link to="/" className="flex items-center gap-3">
+            <img src="/applens-logo.svg" alt="AppLens" className="h-6 w-auto" />
+            {!loggedIn ? (
+              <span className="text-sm font-medium tracking-[0.25em] text-(--text-primary) uppercase opacity-90 hover:opacity-100">
+                {brandText}
+                {inDashboard && !title ? " / Dashboard" : ""}
+              </span>
+            ) : null}
+          </Link>
+
+          {loggedIn ? (
+            <nav className="flex items-center gap-5" aria-label="Primary">
+              <NavLink to="/dashboard" className={appNavLinkClass}>
+                Dashboard
+              </NavLink>
+              <NavLink to="/uploads" className={appNavLinkClass}>
+                Upload
+              </NavLink>
+            </nav>
+          ) : null}
+        </div>
 
         <nav className="flex items-center gap-3">
           {!inAppFlow ? (
@@ -80,10 +102,10 @@ export default function Header({
                 Use Cases
               </Link>
 
-              {loggedIn ? <AuthButton variant="logout" /> : <AuthButton variant="login" />}
+              {loggedIn ? renderAuthButton("logout") : renderAuthButton("login")}
             </>
           ) : (
-            rightAction ?? <AuthButton variant="logout" />
+            rightAction ?? renderAuthButton("logout")
           )}
         </nav>
       </div>

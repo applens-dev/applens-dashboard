@@ -1,7 +1,10 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 import Header from "../components/Header";
 
 export default function LandingPage() {
+  const { isAuthenticated, loginWithRedirect, logout } = useAuth0();
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -30,10 +33,18 @@ export default function LandingPage() {
 
   const edgePadding = "pl-10 sm:pl-16 lg:pl-28 pr-8 sm:pr-12 lg:pr-20";
   const contentWidth = "max-w-4xl";
+  const toggleLogin = () => {
+    if (isAuthenticated) {
+      logout({ logoutParams: { returnTo: window.location.origin } });
+      return;
+    }
+
+    void loginWithRedirect();
+  };
 
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
-      <Header />
+      <Header loggedIn={isAuthenticated} toggleLogin={toggleLogin} />
       <section
         className={`relative min-h-screen flex items-start pt-20 sm:pt-28 ${edgePadding} overflow-hidden`}
       >

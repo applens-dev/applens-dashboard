@@ -31,7 +31,7 @@ export default function OnboardingLayout() {
 
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
-      <Header />
+      <Header loggedIn />
 
       <div className="flex">
         <aside className="w-[280px] border-r border-(--border) min-h-[calc(100vh-73px)] px-6 py-10">
