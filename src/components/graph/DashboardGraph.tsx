@@ -1,5 +1,6 @@
 import dagre from "@dagrejs/dagre";
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import ReactFlow, {
   MarkerType,
   Background,
@@ -501,17 +502,21 @@ export default function DashboardGraph() {
   return (
     <>
       {isExpanded && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 sm:p-6 lg:p-8"
-          onClick={() => setIsExpanded(false)}
-        >
+        createPortal(
           <div
-            className="mx-auto h-full w-full max-w-[1500px] flex items-center justify-center"
-            onClick={(event) => event.stopPropagation()}
+            className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-sm p-4 sm:p-6 lg:p-8"
+            onClick={() => setIsExpanded(false)}
           >
-            {renderGraphCard(true)}
+            <div
+              className="mx-auto h-full w-full max-w-[1500px] flex items-center justify-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {renderGraphCard(true)}
+            </div>
           </div>
-        </div>
+          ,
+          document.body,
+        )
       )}
 
       {!isExpanded && renderGraphCard(false)}
