@@ -7,7 +7,7 @@ import type { AppState } from "@auth0/auth0-react";
 import "./index.css";
 import App from "./App";
 
-function Auth0ProviderWithNavigate({ children }: { children: ReactNode }) {
+export function Auth0ProviderWithNavigate({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   const onRedirectCallback = (appState?: AppState) => {

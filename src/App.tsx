@@ -8,7 +8,7 @@ import OnboardingLayout from "./layouts/OnboardingLayout";
 import ImportTerraformPage from "./pages/ImportTerraformPage";
 import ConnectAwsPage from "./pages/ConnectAwsPage";
 import SetContextPage from "./pages/SetContextPage";
-import { OnboardingProvider } from "./context/OnboardingContext";
+import { OnboardingProvider } from "./context/OnboardingProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {

@@ -62,7 +62,7 @@ export default function UploadsPage() {
 
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
-      <Header title="Uploads" />
+      <Header title="Uploads" loggedIn />
 
       <div className="px-10 sm:px-16 lg:px-20 pt-16 pb-20">
         <div className="w-full">

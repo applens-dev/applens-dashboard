@@ -3,7 +3,7 @@ import Header from "../components/Header";
 export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
-      <Header />
+      <Header loggedIn />
 
       <div className="px-10 sm:px-16 lg:px-20 pt-16 pb-20">
         <div className="flex flex-col lg:flex-row gap-12">
