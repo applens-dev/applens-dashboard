@@ -153,31 +153,33 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="border border-(--border) bg-white/3 rounded-xl px-5 py-4">
-            <div className="text-xs tracking-[0.14em] uppercase text-(--text-muted)">
-              Overall Risk
+        <section className="mt-6 border border-(--border) bg-black/25 backdrop-blur-sm rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="px-6 py-6 sm:px-7 border-b sm:border-b-0 sm:border-r border-(--border)">
+              <div className="text-[11px] tracking-[0.14em] uppercase text-(--text-muted)">
+                Overall Risk
+              </div>
+              <div
+                className="mt-2 text-2xl font-semibold"
+                style={{ color: hasNumericRiskScore ? riskColor : undefined }}
+              >
+                {riskScore}
+              </div>
             </div>
-            <div
-              className="mt-2 text-2xl font-semibold"
-              style={{ color: hasNumericRiskScore ? riskColor : undefined }}
-            >
-              {riskScore}
+            <div className="px-6 py-6 sm:px-7 border-b lg:border-b-0 lg:border-r border-(--border)">
+              <div className="text-[11px] tracking-[0.14em] uppercase text-(--text-muted)">
+                Vulnerabilities
+              </div>
+              <div className="mt-2 text-2xl font-semibold">
+                {vulnerabilityCount}
+              </div>
             </div>
-          </div>
-          <div className="border border-(--border) bg-white/3 rounded-xl px-5 py-4">
-            <div className="text-xs tracking-[0.14em] uppercase text-(--text-muted)">
-              Vulnerabilities
+            <div className="px-6 py-6 sm:px-7">
+              <div className="text-[11px] tracking-[0.14em] uppercase text-(--text-muted)">
+                Total Jobs
+              </div>
+              <div className="mt-2 text-2xl font-semibold">{totalJobs}</div>
             </div>
-            <div className="mt-2 text-2xl font-semibold">
-              {vulnerabilityCount}
-            </div>
-          </div>
-          <div className="border border-(--border) bg-white/3 rounded-xl px-5 py-4">
-            <div className="text-xs tracking-[0.14em] uppercase text-(--text-muted)">
-              Total Jobs
-            </div>
-            <div className="mt-2 text-2xl font-semibold">{totalJobs}</div>
           </div>
         </section>
 

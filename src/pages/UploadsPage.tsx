@@ -2,11 +2,8 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
-  CheckCircle2,
-  Clock3,
   Loader2,
   RefreshCw,
-  XCircle,
 } from "lucide-react";
 import Header from "../components/Header";
 import { getUploads, type UploadJob } from "../api/uploads";
@@ -42,26 +39,6 @@ function clipMiddle(value: string, max = 40): string {
   const head = value.slice(0, Math.ceil(max * 0.55));
   const tail = value.slice(-Math.floor(max * 0.35));
   return `${head}...${tail}`;
-}
-
-type SummaryCardProps = {
-  label: string;
-  value: string;
-  helper?: string;
-};
-
-function SummaryCard({ label, value, helper }: SummaryCardProps) {
-  return (
-    <div className="border border-(--border) bg-white/3 rounded-xl px-5 py-4">
-      <p className="text-[11px] tracking-[0.14em] uppercase text-(--text-muted)">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
-      {helper && (
-        <p className="mt-1 text-xs text-(--text-secondary)">{helper}</p>
-      )}
-    </div>
-  );
 }
 
 export default function UploadsPage() {
@@ -122,6 +99,13 @@ export default function UploadsPage() {
     };
   }, [sortedJobs]);
 
+  const completionRatio =
+    summary.total > 0 ? Math.round((summary.succeeded / summary.total) * 100) : 0;
+  const failedRatio =
+    summary.total > 0 ? Math.round((summary.failed / summary.total) * 100) : 0;
+  const buildingRatio =
+    summary.total > 0 ? Math.round((summary.building / summary.total) * 100) : 0;
+
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary) relative overflow-hidden">
       <div
@@ -176,32 +160,70 @@ export default function UploadsPage() {
           </div>
         )}
 
-        <section className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-          <SummaryCard label="Total Jobs" value={String(summary.total)} />
-          <SummaryCard
-            label="Succeeded"
-            value={String(summary.succeeded)}
-            helper="Completed builds"
-          />
-          <SummaryCard
-            label="Building"
-            value={String(summary.building)}
-            helper="Currently processing"
-          />
-          <SummaryCard
-            label="Failed"
-            value={String(summary.failed)}
-            helper="Needs attention"
-          />
-          <SummaryCard
-            label="Last Updated"
-            value={
-              summary.latestUpdatedAt
-                ? formatTimestamp(summary.latestUpdatedAt)
-                : "-"
-            }
-            helper="Most recent job update"
-          />
+        <section className="mt-6 border border-(--border) bg-black/25 backdrop-blur-sm rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
+            <div className="px-6 py-6 sm:px-8 sm:py-7 border-b xl:border-b-0 xl:border-r border-(--border)">
+              <p className="text-[11px] tracking-[0.14em] uppercase text-(--text-muted)">
+                Pipeline Health
+              </p>
+              <div className="mt-4 h-3 w-full rounded-full bg-white/8 overflow-hidden">
+                <div className="h-full w-full flex">
+                  <div
+                    className="bg-green-300/80"
+                    style={{ width: `${completionRatio}%` }}
+                  />
+                  <div
+                    className="bg-amber-300/80"
+                    style={{ width: `${buildingRatio}%` }}
+                  />
+                  <div
+                    className="bg-red-300/80"
+                    style={{ width: `${failedRatio}%` }}
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-(--text-secondary)">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-300/80" />
+                  {summary.succeeded} succeeded
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-300/80" />
+                  {summary.building} building
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-300/80" />
+                  {summary.failed} failed
+                </span>
+              </div>
+            </div>
+
+            <div className="px-6 py-6 sm:px-8 sm:py-7">
+              <p className="text-[11px] tracking-[0.14em] uppercase text-(--text-muted)">
+                Snapshot
+              </p>
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-(--text-secondary)">Total jobs</span>
+                  <span className="text-xl font-semibold">{summary.total}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-(--text-secondary)">
+                    Completion rate
+                  </span>
+                  <span className="text-xl font-semibold">{completionRatio}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-(--text-secondary)">Last updated</span>
+                  <span className="text-sm font-medium text-right">
+                    {summary.latestUpdatedAt
+                      ? formatTimestamp(summary.latestUpdatedAt)
+                      : "-"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         {!isLoading && !error && sortedJobs.length === 0 && (
@@ -315,24 +337,6 @@ export default function UploadsPage() {
           </div>
         )}
 
-        {!isLoading && !error && summary.total > 0 && (
-          <section className="mt-6 border border-(--border) bg-white/3 rounded-xl px-5 py-4 text-sm text-(--text-secondary)">
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-green-300" />
-                {summary.succeeded} succeeded
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Clock3 className="w-4 h-4 text-amber-300" />
-                {summary.building} building
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <XCircle className="w-4 h-4 text-red-300" />
-                {summary.failed} failed
-              </span>
-            </div>
-          </section>
-        )}
       </div>
     </div>
   );

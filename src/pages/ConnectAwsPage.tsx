@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useOnboarding } from "../context/OnboardingContext";
+import { CheckSquare } from "lucide-react";
 
 export default function ConnectAwsPage() {
   const { state, setAwsConnected } = useOnboarding();
@@ -7,12 +8,12 @@ export default function ConnectAwsPage() {
   return (
     <div className="max-w-4xl mx-auto px-10 sm:px-16 lg:px-20 pt-28">
       <h2 className="text-3xl sm:text-4xl font-semibold text-(--text-primary) mb-4">
-        Connect AWS
+        Connect AWS Account
       </h2>
 
       <p className="text-sm text-(--text-secondary) font-light leading-relaxed mb-10">
-        Tutorial for connecting AppLens to your AWS environment goes here.
-        For Sprint 1 MVP, this page is a placeholder to match the design flow.
+        Connect your AWS environment to AppLens to start analyzing your
+        infrastructure.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -33,7 +34,9 @@ export default function ConnectAwsPage() {
       </div>
 
       {state.awsConnected && (
-        <p className="mt-6 text-sm text-(--text-primary)">✅ AWS connected (demo state)</p>
+        <p className="mt-6 text-sm text-(--text-primary) flex items-center gap-2">
+          <CheckSquare className="w-4 h-4" /> AWS connected (demo state)
+        </p>
       )}
     </div>
   );
