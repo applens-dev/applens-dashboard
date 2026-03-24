@@ -1,8 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth0 } from "@auth0/auth0-react";
-import { presignTerraformUpload, uploadFileToPresignedUrl } from "../api/uploads";
+import {
+  presignTerraformUpload,
+  uploadFileToPresignedUrl,
+} from "../api/uploads";
 import { useOnboarding } from "../context/OnboardingContext";
+import { CloudUpload } from "lucide-react";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -32,12 +36,15 @@ function isTerraformLikeFile(file: File) {
 export default function ImportTerraformPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { state, setTerraformUpload } = useOnboarding();
-  const { getAccessTokenSilently, isAuthenticated, loginWithRedirect } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, loginWithRedirect } =
+    useAuth0();
 
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "presigning" | "uploading" | "done">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "presigning" | "uploading" | "done"
+  >("idle");
   const [progress, setProgress] = useState<number>(0);
 
   const isBusy = status === "presigning" || status === "uploading";
@@ -121,7 +128,8 @@ export default function ImportTerraformPage() {
     <div className="w-full">
       <div className="max-w-4xl mx-auto px-10 sm:px-16 lg:px-20 pt-20">
         <h2 className="text-3xl sm:text-4xl font-semibold text-(--text-primary) mb-2">
-          Upload your <span className="font-semibold">Terraform</span> files below.
+          Upload your <span className="font-semibold">Terraform</span> files
+          below.
         </h2>
 
         <p className="text-sm text-(--text-secondary) font-light mb-10">
@@ -160,7 +168,9 @@ export default function ImportTerraformPage() {
         >
           <div className="w-full">
             <div className="mx-auto w-14 h-14 rounded-2xl border border-(--border) bg-white/3 flex items-center justify-center mb-6">
-              <span className="text-2xl">⬆️</span>
+              <span className="text-2xl">
+                <CloudUpload />
+              </span>
             </div>
 
             <p className="text-lg sm:text-xl font-light text-(--text-primary) mb-2">
@@ -186,10 +196,10 @@ export default function ImportTerraformPage() {
                 {status === "presigning"
                   ? "Preparing..."
                   : status === "uploading"
-                  ? `Uploading ${progress}%`
-                  : status === "done"
-                  ? "Uploaded"
-                  : "Upload"}
+                    ? `Uploading ${progress}%`
+                    : status === "done"
+                      ? "Uploaded"
+                      : "Upload"}
               </button>
             </div>
 
@@ -210,7 +220,8 @@ export default function ImportTerraformPage() {
         {status === "done" && state.terraformUploadKey && (
           <div className="mt-8 border border-(--border) bg-white/2 rounded-xl p-5">
             <p className="text-sm text-(--text-primary) mb-2">
-              ✅ Uploaded: <span className="font-medium">{state.terraformFilename}</span>
+              ✅ Uploaded:{" "}
+              <span className="font-medium">{state.terraformFilename}</span>
             </p>
 
             <p className="text-xs text-(--text-muted) break-all">
