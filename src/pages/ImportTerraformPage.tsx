@@ -117,10 +117,10 @@ export default function ImportTerraformPage() {
       });
 
       setStatus("done");
-    } catch (e: any) {
+    } catch (e: unknown) {
       setStatus("idle");
       setProgress(0);
-      setError(e?.message ?? "Upload failed.");
+      setError(e instanceof Error ? e.message : "Upload failed.");
     }
   }
 
