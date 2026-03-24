@@ -3,6 +3,7 @@ import LandingPage from "./pages/LandingPage";
 import UseCasesPage from "./pages/UseCasesPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import InventoryPage from "./pages/InventoryPage";
 import UploadsPage from "./pages/UploadsPage";
 import OnboardingLayout from "./layouts/OnboardingLayout";
 import ImportTerraformPage from "./pages/ImportTerraformPage";
@@ -23,6 +24,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/inventory"
+        element={
+          <ProtectedRoute>
+            <InventoryPage />
           </ProtectedRoute>
         }
       />

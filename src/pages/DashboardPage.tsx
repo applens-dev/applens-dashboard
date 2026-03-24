@@ -1,5 +1,6 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Header from "../components/Header";
 import DashboardGraph from "../components/graph/DashboardGraph";
 import { getCurrentUser, getUploads, type UploadJob } from "../api/uploads";
@@ -59,20 +60,26 @@ export default function DashboardPage() {
     return "user";
   })();
 
-  const vulnerableJobs = useMemo(
-    () =>
-      jobs.filter((job) => {
-        const status = job.status.trim().toUpperCase();
-        return (
-          status === "VULNERABLE" ||
-          status === "HAS_VULNERABILITIES" ||
-          status === "VULNERABILITIES_FOUND"
-        );
-      }),
-    [jobs],
-  );
+  const threatItems = useMemo(() => {
+    const nodeThreats = ((graphData as any).nodes ?? []).flatMap((node: any) =>
+      (node.threats ?? node.data?.threats ?? []).map((threat: any) => ({
+        key: `${node.id}-${threat.title ?? "threat"}`,
+        title: threat.title ?? "Untitled threat",
+        source: node.data?.shortType ?? node.data?.label ?? node.id,
+      })),
+    );
+    const boundaryThreats = ((graphData as any).edges ?? []).flatMap(
+      (edge: any) =>
+        (edge.data?.boundaryThreats ?? []).map((threat: any) => ({
+          key: `${edge.id}-${threat.title ?? "boundary-threat"}`,
+          title: threat.title ?? "Untitled boundary threat",
+          source: `${edge.source} -> ${edge.target}`,
+        })),
+    );
+    return [...nodeThreats, ...boundaryThreats];
+  }, []);
+  const vulnerabilityCount = threatItems.length;
   const totalJobs = jobs.length;
-  const healthyJobs = Math.max(totalJobs - vulnerableJobs.length, 0);
   const riskScore =
     graphData.metadata?.overallRiskScore !== undefined &&
     graphData.metadata?.overallRiskScore !== null
@@ -108,7 +115,7 @@ export default function DashboardPage() {
 
       <div className="relative z-10 px-6 sm:px-10 lg:px-14 xl:px-20 pt-12 pb-20">
         <section className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6 items-stretch">
-          <div className="border border-(--border) bg-black/20 backdrop-blur-sm rounded-2xl p-6 sm:p-8">
+          <div className="pt-4 sm:pt-5 px-1 sm:px-2">
             <p className="text-xs tracking-[0.18em] uppercase text-(--text-muted)">
               AppLens Overview
             </p>
@@ -116,14 +123,14 @@ export default function DashboardPage() {
               Good morning, <span className="opacity-90">{displayName}</span>.
             </h2>
             <p className="mt-3 text-sm text-(--text-secondary) font-light max-w-3xl">
-              There {vulnerableJobs.length !== 1 ? "are" : "is"} currently{" "}
+              There {vulnerabilityCount !== 1 ? "are" : "is"} currently{" "}
               <span className="font-bold">
-                {vulnerableJobs.length}{" "}
-                {vulnerableJobs.length !== 1
+                {vulnerabilityCount}{" "}
+                {vulnerabilityCount !== 1
                   ? "vulnerabilities"
                   : "vulnerability"}{" "}
               </span>
-              requiring attention across your latest ingestion jobs.
+              identified in the current architecture analysis.
             </p>
           </div>
           <div className="border border-(--border) bg-black/20 backdrop-blur-sm rounded-2xl p-6 sm:p-8 flex items-center justify-between gap-4">
@@ -137,13 +144,16 @@ export default function DashboardPage() {
                 findings.
               </p>
             </div>
-            <button className="shrink-0 px-6 py-2 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40 opacity-90 hover:opacity-100">
+            <Link
+              to="/dashboard/inventory"
+              className="shrink-0 px-6 py-2 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40 opacity-90 hover:opacity-100"
+            >
               Live inventory/SBOM
-            </button>
+            </Link>
           </div>
         </section>
 
-        <section className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <section className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="border border-(--border) bg-white/3 rounded-xl px-5 py-4">
             <div className="text-xs tracking-[0.14em] uppercase text-(--text-muted)">
               Overall Risk
@@ -157,17 +167,11 @@ export default function DashboardPage() {
           </div>
           <div className="border border-(--border) bg-white/3 rounded-xl px-5 py-4">
             <div className="text-xs tracking-[0.14em] uppercase text-(--text-muted)">
-              Vulnerable Jobs
+              Vulnerabilities
             </div>
             <div className="mt-2 text-2xl font-semibold">
-              {vulnerableJobs.length}
+              {vulnerabilityCount}
             </div>
-          </div>
-          <div className="border border-(--border) bg-white/3 rounded-xl px-5 py-4">
-            <div className="text-xs tracking-[0.14em] uppercase text-(--text-muted)">
-              Healthy Jobs
-            </div>
-            <div className="mt-2 text-2xl font-semibold">{healthyJobs}</div>
           </div>
           <div className="border border-(--border) bg-white/3 rounded-xl px-5 py-4">
             <div className="text-xs tracking-[0.14em] uppercase text-(--text-muted)">
@@ -239,20 +243,22 @@ export default function DashboardPage() {
                   Active Vulnerabilities
                 </h3>
               </div>
-              {vulnerableJobs.length === 0 ? (
+              {threatItems.length === 0 ? (
                 <div className="px-5 py-4 text-(--text-secondary) font-light">
                   None detected
                 </div>
               ) : (
-                vulnerableJobs.map((job, idx) => (
+                threatItems.slice(0, 8).map((threat, idx) => (
                   <div
-                    key={job.uploadId}
+                    key={`${threat.key}-${idx}`}
                     className="px-5 py-4 border-b border-(--border) last:border-b-0 flex items-center justify-between gap-3"
                   >
                     <span className="font-light truncate">
-                      {idx + 1}. {job.uploadId}
+                      {idx + 1}. {threat.title}
                     </span>
-                    <span className="opacity-70 shrink-0">Open</span>
+                    <span className="opacity-70 shrink-0 text-xs truncate max-w-[120px]">
+                      {threat.source}
+                    </span>
                   </div>
                 ))
               )}
