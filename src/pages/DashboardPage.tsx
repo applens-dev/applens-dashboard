@@ -62,6 +62,16 @@ export default function DashboardPage() {
     graphData.metadata?.overallRiskScore !== null
       ? String(graphData.metadata.overallRiskScore)
       : "N/A";
+  const numericRiskScore = Number.parseFloat(riskScore);
+  const hasNumericRiskScore = Number.isFinite(numericRiskScore);
+  const normalizedRiskScore = hasNumericRiskScore
+    ? Math.min(100, Math.max(0, numericRiskScore))
+    : 0;
+  const progress = normalizedRiskScore / 100;
+  const ringRadius = 96;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringCircumference * (1 - progress);
+  const riskColor = `hsl(${(1 - progress) * 120} 80% 50%)`;
 
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
@@ -74,19 +84,62 @@ export default function DashboardPage() {
               Good morning, <span className="opacity-90">{displayName}</span>.
             </h2>
             <p className="text-sm text-(--text-secondary) font-light mb-10">
-              There {vulnerableJobs.length > 1 ? "are" : "is"} currently{" "}
+              There {vulnerableJobs.length !== 1 ? "are" : "is"} currently{" "}
               {vulnerableJobs.length}{" "}
-              {vulnerableJobs.length > 1 ? "vulnerabilities" : "vulnerability"}{" "}
+              {vulnerableJobs.length !== 1
+                ? "vulnerabilities"
+                : "vulnerability"}{" "}
               you should take a look at.
             </p>
 
-            <div className="w-72 h-72 rounded-full border border-(--border) flex items-center justify-center bg-white/2">
-              <div className="w-52 h-52 rounded-full border-4 border-white/20 flex items-center justify-center">
+            <div className="w-72 h-72 rounded-full border border-(--border) flex items-center justify-center bg-white/2 relative">
+              <svg
+                className="absolute w-56 h-56 -rotate-90"
+                viewBox="0 0 240 240"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="120"
+                  cy="120"
+                  r={ringRadius}
+                  fill="none"
+                  stroke="rgba(255, 255, 255, 0.15)"
+                  strokeWidth="14"
+                />
+                <circle
+                  cx="120"
+                  cy="120"
+                  r={ringRadius}
+                  fill="none"
+                  stroke={
+                    hasNumericRiskScore
+                      ? riskColor
+                      : "rgba(255, 255, 255, 0.35)"
+                  }
+                  strokeWidth="14"
+                  strokeLinecap="round"
+                  strokeDasharray={ringCircumference}
+                  strokeDashoffset={ringOffset}
+                  style={{
+                    transition:
+                      "stroke-dashoffset 400ms ease, stroke 300ms ease",
+                  }}
+                />
+              </svg>
+
+              <div className="w-52 h-52 rounded-full border border-white/12 flex items-center justify-center bg-black/10">
                 <div className="text-center">
                   <div className="text-xs text-(--text-muted) tracking-[0.2em] uppercase mb-1">
                     Risk Score
                   </div>
-                  <div className="text-5xl font-semibold">{riskScore}</div>
+                  <div
+                    className="text-5xl font-semibold"
+                    style={{
+                      color: hasNumericRiskScore ? riskColor : undefined,
+                    }}
+                  >
+                    {riskScore}
+                  </div>
                 </div>
               </div>
             </div>
