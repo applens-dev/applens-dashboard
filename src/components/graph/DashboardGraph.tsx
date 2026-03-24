@@ -504,11 +504,11 @@ export default function DashboardGraph() {
       {isExpanded && (
         createPortal(
           <div
-            className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-sm p-4 sm:p-6 lg:p-8"
+            className="dashboard-expand-backdrop fixed inset-0 z-[90] bg-black/75 backdrop-blur-sm p-4 sm:p-6 lg:p-8"
             onClick={() => setIsExpanded(false)}
           >
             <div
-              className="mx-auto h-full w-full max-w-[1500px] flex items-center justify-center"
+              className="dashboard-expand-panel mx-auto h-full w-full max-w-[1500px] flex items-center justify-center"
               onClick={(event) => event.stopPropagation()}
             >
               {renderGraphCard(true)}
