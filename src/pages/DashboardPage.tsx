@@ -1,7 +1,9 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
+import DashboardGraph from "../components/graph/DashboardGraph";
 import { getCurrentUser, getUploads, type UploadJob } from "../api/uploads";
+import graphData from "../data/strideGraph.json";
 
 export default function DashboardPage() {
   const { user, getAccessTokenSilently } = useAuth0();
@@ -47,10 +49,19 @@ export default function DashboardPage() {
     () =>
       jobs.filter((job) => {
         const status = job.status.trim().toUpperCase();
-        return status === "FAILED" || status === "BUILDING";
+        return (
+          status === "VULNERABLE" ||
+          status === "HAS_VULNERABILITIES" ||
+          status === "VULNERABILITIES_FOUND"
+        );
       }),
     [jobs],
   );
+  const riskScore =
+    graphData.metadata?.overallRiskScore !== undefined &&
+    graphData.metadata?.overallRiskScore !== null
+      ? String(graphData.metadata.overallRiskScore)
+      : "N/A";
 
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary)">
@@ -75,7 +86,7 @@ export default function DashboardPage() {
                   <div className="text-xs text-(--text-muted) tracking-[0.2em] uppercase mb-1">
                     Risk Score
                   </div>
-                  <div className="text-5xl font-semibold">0</div>
+                  <div className="text-5xl font-semibold">{riskScore}</div>
                 </div>
               </div>
             </div>
@@ -111,9 +122,7 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <div className="border border-(--border) bg-white/2 rounded-xl min-h-[520px] flex items-center justify-center text-(--text-muted)">
-              Architecture / workflow diagram placeholder
-            </div>
+            <DashboardGraph />
 
             <div className="mt-6 border border-(--border) bg-white/2 rounded-xl min-h-[140px] flex items-center justify-center text-(--text-muted)">
               Timeline placeholder

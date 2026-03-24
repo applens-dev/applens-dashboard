@@ -38,3 +38,61 @@ body {
   -webkit-mask-image: linear-gradient(to left, black 0%, transparent 96%);
   mask-image: linear-gradient(to left, black 0%, transparent 96%);
 }
+
+@keyframes dashboard-edge-dash {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+.react-flow__edge.dashboard-flow-edge .react-flow__edge-path {
+  animation: dashboard-edge-dash 0.9s linear infinite;
+}
+
+.dashboard-flow-canvas .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes dashboard-node-select-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(244, 63, 94, 0.45),
+      0 16px 30px rgba(0, 0, 0, 0.35);
+  }
+  70% {
+    box-shadow:
+      0 0 0 10px rgba(244, 63, 94, 0),
+      0 20px 36px rgba(0, 0, 0, 0.45);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(244, 63, 94, 0),
+      0 16px 30px rgba(0, 0, 0, 0.35);
+  }
+}
+
+.dashboard-flow-canvas .react-flow__node.dashboard-flow-node {
+  transition:
+    opacity 180ms ease,
+    filter 180ms ease;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.dashboard-flow-canvas .react-flow__node.dashboard-flow-node-selected {
+  transform: translateY(-3px) scale(1.03);
+  z-index: 20;
+  filter: saturate(1.12);
+  animation: dashboard-node-select-pulse 1.4s ease-out infinite;
+}
+
+.dashboard-flow-canvas .react-flow__node.dashboard-flow-node-dimmed {
+  opacity: 0.52;
+  filter: grayscale(0.18) saturate(0.8);
+}
+
+.dashboard-flow-canvas .react-flow__node.dragging {
+  transition: none !important;
+  animation: none !important;
+}

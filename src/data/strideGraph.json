@@ -1,0 +1,568 @@
+{
+  "nodes": [
+    {
+      "id": "apigatewayv2_api_http_api",
+      "type": "awsNode",
+      "position": {
+        "x": 300,
+        "y": 40
+      },
+      "data": {
+        "label": "aws_apigatewayv2_api.http_api",
+        "resourceType": "aws_apigatewayv2_api",
+        "shortType": "API Gateway v2",
+        "provider": "aws",
+        "address": "aws_apigatewayv2_api.http_api",
+        "attributes": {
+          "name": "app-http-api",
+          "protocol_type": "HTTP"
+        },
+        "threatSurface": "public",
+        "strideFlags": {
+          "spoofing": true,
+          "tampering": true,
+          "repudiation": false,
+          "informationDisclosure": true,
+          "denialOfService": true,
+          "elevationOfPrivilege": false
+        },
+        "cvssScore": null,
+        "threats": [
+          {
+            "category": "Spoofing",
+            "title": "HTTP Protocol Enables Man-in-the-Middle Attacks",
+            "description": "The API Gateway is configured with protocol_type=HTTP rather than HTTPS. Attackers can intercept unencrypted traffic between clients and the API, impersonating either party and capturing or modifying requests/responses.",
+            "severity": "High"
+          },
+          {
+            "category": "Information Disclosure",
+            "title": "Unencrypted Data Transmission",
+            "description": "HTTP protocol exposes all request and response payloads in plaintext, including user IDs, query parameters, and response data transiting to the DynamoDB backend.",
+            "severity": "High"
+          },
+          {
+            "category": "Denial of Service",
+            "title": "No Rate Limiting or Throttling",
+            "description": "API Gateway HTTP API lacks explicit rate limiting or throttling configuration, allowing attackers to exhaust backend resources by sending high-volume requests to GET /users endpoint.",
+            "severity": "Medium"
+          }
+        ]
+      }
+    },
+    {
+      "id": "apigatewayv2_stage_default",
+      "type": "awsNode",
+      "position": {
+        "x": 100,
+        "y": 160
+      },
+      "data": {
+        "label": "aws_apigatewayv2_stage.default",
+        "resourceType": "aws_apigatewayv2_stage",
+        "shortType": "API Stage",
+        "provider": "aws",
+        "address": "aws_apigatewayv2_stage.default",
+        "attributes": {
+          "name": "$default",
+          "auto_deploy": true
+        },
+        "threatSurface": "public",
+        "strideFlags": {
+          "spoofing": false,
+          "tampering": false,
+          "repudiation": true,
+          "informationDisclosure": false,
+          "denialOfService": false,
+          "elevationOfPrivilege": false
+        },
+        "cvssScore": null,
+        "threats": [
+          {
+            "category": "Repudiation",
+            "title": "Auto-Deploy Lacks Audit Trail",
+            "description": "auto_deploy=true automatically deploys changes without explicit approval records. API changes cannot be reliably attributed to specific actors or changesets, enabling denial of deployment responsibility.",
+            "severity": "Medium"
+          }
+        ]
+      }
+    },
+    {
+      "id": "apigatewayv2_integration_lambda_integration",
+      "type": "awsNode",
+      "position": {
+        "x": 300,
+        "y": 160
+      },
+      "data": {
+        "label": "aws_apigatewayv2_integration.lambda_integration",
+        "resourceType": "aws_apigatewayv2_integration",
+        "shortType": "API Integration",
+        "provider": "aws",
+        "address": "aws_apigatewayv2_integration.lambda_integration",
+        "attributes": {
+          "integration_type": "AWS_PROXY",
+          "payload_format_version": "2.0"
+        },
+        "threatSurface": "internal",
+        "strideFlags": {
+          "spoofing": false,
+          "tampering": false,
+          "repudiation": false,
+          "informationDisclosure": false,
+          "denialOfService": false,
+          "elevationOfPrivilege": false
+        },
+        "cvssScore": null,
+        "threats": []
+      }
+    },
+    {
+      "id": "apigatewayv2_route_default_route",
+      "type": "awsNode",
+      "position": {
+        "x": 500,
+        "y": 160
+      },
+      "data": {
+        "label": "aws_apigatewayv2_route.default_route",
+        "resourceType": "aws_apigatewayv2_route",
+        "shortType": "API Route",
+        "provider": "aws",
+        "address": "aws_apigatewayv2_route.default_route",
+        "attributes": {
+          "route_key": "GET /users"
+        },
+        "threatSurface": "public",
+        "strideFlags": {
+          "spoofing": false,
+          "tampering": false,
+          "repudiation": false,
+          "informationDisclosure": false,
+          "denialOfService": false,
+          "elevationOfPrivilege": false
+        },
+        "cvssScore": null,
+        "threats": []
+      }
+    },
+    {
+      "id": "lambda_function_app_handler",
+      "type": "awsNode",
+      "position": {
+        "x": 300,
+        "y": 320
+      },
+      "data": {
+        "label": "aws_lambda_function.app_handler",
+        "resourceType": "aws_lambda_function",
+        "shortType": "Lambda",
+        "provider": "aws",
+        "address": "aws_lambda_function.app_handler",
+        "attributes": {
+          "function_name": "app-handler",
+          "runtime": "nodejs18.x",
+          "handler": "index.handler",
+          "env_vars": {
+            "TABLE_NAME": "aws_dynamodb_table.users.name"
+          }
+        },
+        "threatSurface": "internal",
+        "strideFlags": {
+          "spoofing": false,
+          "tampering": true,
+          "repudiation": false,
+          "informationDisclosure": true,
+          "denialOfService": false,
+          "elevationOfPrivilege": false
+        },
+        "cvssScore": null,
+        "threats": [
+          {
+            "category": "Information Disclosure",
+            "title": "Hardcoded Environment Variable Exposure",
+            "description": "TABLE_NAME environment variable is explicitly set to reference the DynamoDB table name. If Lambda function code or CloudWatch logs are accessed by an attacker, the table name and structure are exposed, enabling targeted attacks on the database.",
+            "severity": "Medium"
+          },
+          {
+            "category": "Tampering",
+            "title": "Lambda Function Code Integrity Not Verified",
+            "description": "No cryptographic verification or signed deployment mechanism is configured. An attacker with write access to the Lambda code source could inject malicious code that steals data from DynamoDB or modifies user records.",
+            "severity": "High"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lambda_permission_allow_api_gateway",
+      "type": "awsNode",
+      "position": {
+        "x": 560,
+        "y": 320
+      },
+      "data": {
+        "label": "aws_lambda_permission.allow_api_gateway",
+        "resourceType": "aws_lambda_permission",
+        "shortType": "Lambda Permission",
+        "provider": "aws",
+        "address": "aws_lambda_permission.allow_api_gateway",
+        "attributes": {
+          "action": "lambda:InvokeFunction",
+          "principal": "apigateway.amazonaws.com",
+          "statement_id": "AllowExecutionFromAPIGateway"
+        },
+        "threatSurface": "iam",
+        "strideFlags": {
+          "spoofing": false,
+          "tampering": false,
+          "repudiation": false,
+          "informationDisclosure": false,
+          "denialOfService": false,
+          "elevationOfPrivilege": false
+        },
+        "cvssScore": null,
+        "threats": []
+      }
+    },
+    {
+      "id": "iam_role_lambda_exec_role",
+      "type": "awsNode",
+      "position": {
+        "x": 560,
+        "y": 460
+      },
+      "data": {
+        "label": "aws_iam_role.lambda_exec_role",
+        "resourceType": "aws_iam_role",
+        "shortType": "IAM Role",
+        "provider": "aws",
+        "address": "aws_iam_role.lambda_exec_role",
+        "attributes": {
+          "name": "lambda-exec-role",
+          "trusted_service": "lambda.amazonaws.com"
+        },
+        "threatSurface": "iam",
+        "strideFlags": {
+          "spoofing": false,
+          "tampering": false,
+          "repudiation": false,
+          "informationDisclosure": false,
+          "denialOfService": false,
+          "elevationOfPrivilege": true
+        },
+        "cvssScore": null,
+        "threats": [
+          {
+            "category": "Elevation of Privilege",
+            "title": "Overly Permissive DynamoDB Actions",
+            "description": "The lambda-exec-role trusts lambda.amazonaws.com. Combined with aws_iam_role_policy.lambda_dynamo_policy granting dynamodb:PutItem and dynamodb:GetItem on the users table, a compromised Lambda can read all user records (GetItem without key restriction) and write arbitrary data (PutItem), escalating from a GET /users handler to full database modification capability.",
+            "severity": "High"
+          }
+        ]
+      }
+    },
+    {
+      "id": "iam_role_policy_lambda_dynamo_policy",
+      "type": "awsNode",
+      "position": {
+        "x": 560,
+        "y": 580
+      },
+      "data": {
+        "label": "aws_iam_role_policy.lambda_dynamo_policy",
+        "resourceType": "aws_iam_role_policy",
+        "shortType": "IAM Policy",
+        "provider": "aws",
+        "address": "aws_iam_role_policy.lambda_dynamo_policy",
+        "attributes": {
+          "name": "lambda-dynamo-policy",
+          "actions": ["dynamodb:PutItem", "dynamodb:GetItem"]
+        },
+        "threatSurface": "iam",
+        "strideFlags": {
+          "spoofing": false,
+          "tampering": false,
+          "repudiation": false,
+          "informationDisclosure": false,
+          "denialOfService": false,
+          "elevationOfPrivilege": true
+        },
+        "cvssScore": null,
+        "threats": [
+          {
+            "category": "Elevation of Privilege",
+            "title": "Unrestricted DynamoDB Actions Without Resource ARN Constraint",
+            "description": "The policy grants dynamodb:PutItem and dynamodb:GetItem actions with no explicit Resource ARN constraint (implicitly grants wildcard). An attacker compromising the Lambda function can access, modify, or enumerate data in any DynamoDB table in the AWS account, not just the intended users-table.",
+            "severity": "Critical"
+          },
+          {
+            "category": "Tampering",
+            "title": "No Condition on DynamoDB Operations",
+            "description": "The policy lacks conditions such as StringEquals on aws:RequestedRegion or other constraints. An attacker exploiting the Lambda can execute unrestricted read/write operations on user data without additional authorization checks.",
+            "severity": "High"
+          }
+        ]
+      }
+    },
+    {
+      "id": "dynamodb_table_users",
+      "type": "awsNode",
+      "position": {
+        "x": 300,
+        "y": 460
+      },
+      "data": {
+        "label": "aws_dynamodb_table.users",
+        "resourceType": "aws_dynamodb_table",
+        "shortType": "DynamoDB",
+        "provider": "aws",
+        "address": "aws_dynamodb_table.users",
+        "attributes": {
+          "name": "users-table",
+          "billing_mode": "PAY_PER_REQUEST",
+          "hash_key": "userId",
+          "key_type": "S"
+        },
+        "threatSurface": "internal",
+        "strideFlags": {
+          "spoofing": false,
+          "tampering": true,
+          "repudiation": false,
+          "informationDisclosure": true,
+          "denialOfService": true,
+          "elevationOfPrivilege": false
+        },
+        "cvssScore": null,
+        "threats": [
+          {
+            "category": "Information Disclosure",
+            "title": "No Encryption at Rest Configured",
+            "description": "DynamoDB table is configured with billing_mode=PAY_PER_REQUEST but lacks explicit KMS encryption configuration. User data (userId, records) is stored with AWS-managed keys, not customer-managed encryption, reducing control over key rotation and audit.",
+            "severity": "Medium"
+          },
+          {
+            "category": "Tampering",
+            "title": "No Point-in-Time Recovery or DynamoDB Streams",
+            "description": "No Point-in-Time Recovery (PITR) or DynamoDB Streams are enabled. If a compromised Lambda or unauthorized actor modifies user records, changes cannot be audited or rolled back, preventing detection and remediation of data tampering.",
+            "severity": "Medium"
+          },
+          {
+            "category": "Denial of Service",
+            "title": "No DynamoDB Auto-Scaling or Burst Capacity Limits",
+            "description": "PAY_PER_REQUEST billing mode has no hard throughput limits. An attacker exploiting the Lambda via the HTTP API can send unlimited requests, exhausting DynamoDB write/read capacity and incurring unbounded costs, effectively denying service.",
+            "severity": "Medium"
+          }
+        ]
+      }
+    },
+    {
+      "id": "local_file_lambda_index",
+      "type": "buildNode",
+      "position": {
+        "x": 40,
+        "y": 460
+      },
+      "data": {
+        "label": "local_file.lambda_index",
+        "resourceType": "local_file",
+        "shortType": "Local File",
+        "provider": "local",
+        "address": "local_file.lambda_index",
+        "attributes": {
+          "filename": "lambda_src/index.js",
+          "runtime_inferred": "nodejs18.x"
+        },
+        "threatSurface": "build",
+        "strideFlags": [],
+        "cvssScore": null
+      }
+    },
+    {
+      "id": "data_archive_file_lambda_zip",
+      "type": "buildNode",
+      "position": {
+        "x": 40,
+        "y": 320
+      },
+      "data": {
+        "label": "data.archive_file.lambda_zip",
+        "resourceType": "archive_file",
+        "shortType": "Archive (data)",
+        "provider": "archive",
+        "address": "data.archive_file.lambda_zip",
+        "attributes": {
+          "type": "zip",
+          "output_path": "lambda.zip"
+        },
+        "threatSurface": "build",
+        "strideFlags": [],
+        "cvssScore": null
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_stage_api",
+      "source": "apigatewayv2_stage_default",
+      "target": "apigatewayv2_api_http_api",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "belongs_to",
+        "resolvedFrom": "aws_apigatewayv2_api.http_api.id",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_integration_api",
+      "source": "apigatewayv2_integration_lambda_integration",
+      "target": "apigatewayv2_api_http_api",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "belongs_to",
+        "resolvedFrom": "aws_apigatewayv2_api.http_api.id",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_integration_lambda",
+      "source": "apigatewayv2_integration_lambda_integration",
+      "target": "lambda_function_app_handler",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "invokes",
+        "resolvedFrom": "aws_lambda_function.app_handler.invoke_arn",
+        "trustBoundary": true,
+        "boundaryThreats": [
+          {
+            "category": "Spoofing",
+            "title": "Unauthenticated Lambda Invocation",
+            "description": "The integration invokes Lambda via aws_lambda_permission.allow_api_gateway with principal=apigateway.amazonaws.com. No authorization policy or API key is enforced on the HTTP API stage, allowing any external client to invoke the GET /users endpoint and trigger Lambda execution without authentication.",
+            "severity": "High"
+          },
+          {
+            "category": "Information Disclosure",
+            "title": "Unvalidated Input to Lambda Function",
+            "description": "HTTP API routes requests to Lambda without input validation or sanitization at the API Gateway layer. The Lambda receives raw query parameters from route_key=GET /users; an attacker can inject malicious input (SQL injection, path traversal) that the Lambda handler may not validate, exposing user data or enabling further attacks.",
+            "severity": "High"
+          },
+          {
+            "category": "Tampering",
+            "title": "Lambda Payload Format Version 2.0 Allows Unvalidated Headers",
+            "description": "Integration uses payload_format_version=2.0, which passes raw HTTP headers and request context to Lambda. Attacker can craft malicious HTTP headers (Host, User-Agent, X-Forwarded-For) to manipulate Lambda logic if handler does not validate headers, leading to request forgery or cache poisoning.",
+            "severity": "Medium"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e_route_api",
+      "source": "apigatewayv2_route_default_route",
+      "target": "apigatewayv2_api_http_api",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "belongs_to",
+        "resolvedFrom": "aws_apigatewayv2_api.http_api.id",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_route_integration",
+      "source": "apigatewayv2_route_default_route",
+      "target": "apigatewayv2_integration_lambda_integration",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "routes_to",
+        "resolvedFrom": "aws_apigatewayv2_integration.lambda_integration.id",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_lambda_iam_role",
+      "source": "lambda_function_app_handler",
+      "target": "iam_role_lambda_exec_role",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "assumes_role",
+        "resolvedFrom": "aws_iam_role.lambda_exec_role.arn",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_lambda_dynamo_env",
+      "source": "lambda_function_app_handler",
+      "target": "dynamodb_table_users",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "references_via_env",
+        "resolvedFrom": "aws_dynamodb_table.users.name",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_lambda_archive",
+      "source": "lambda_function_app_handler",
+      "target": "data_archive_file_lambda_zip",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "packaged_from",
+        "resolvedFrom": "data.archive_file.lambda_zip.output_path",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_permission_lambda",
+      "source": "lambda_permission_allow_api_gateway",
+      "target": "lambda_function_app_handler",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "grants_invoke",
+        "resolvedFrom": "aws_lambda_function.app_handler.function_name",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_policy_role",
+      "source": "iam_role_policy_lambda_dynamo_policy",
+      "target": "iam_role_lambda_exec_role",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "attaches_to",
+        "resolvedFrom": "aws_iam_role.lambda_exec_role.id",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_policy_dynamo",
+      "source": "iam_role_policy_lambda_dynamo_policy",
+      "target": "dynamodb_table_users",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "grants_actions",
+        "resolvedFrom": "aws_dynamodb_table.users.arn",
+        "trustBoundary": false
+      }
+    },
+    {
+      "id": "e_archive_localfile",
+      "source": "data_archive_file_lambda_zip",
+      "target": "local_file_lambda_index",
+      "type": "dependencyEdge",
+      "data": {
+        "relationshipType": "depends_on",
+        "resolvedFrom": "depends_on: local_file.lambda_index",
+        "trustBoundary": false
+      }
+    }
+  ],
+  "metadata": {
+    "parsedAt": "2026-03-24T00:00:00Z",
+    "sourceFiles": ["test.tf"],
+    "tfVersion": "~> 5.0",
+    "unresolvedDataSources": [],
+    "parseWarnings": [
+      "local_file and archive_file are build-time resources — consider excluding from security graph rendering"
+    ],
+    "overallRiskScore": 82,
+    "riskRationale": "The architecture exposes critical risks: unencrypted HTTP communication, overly permissive IAM policies granting unrestricted DynamoDB access, lack of API authentication, and missing audit controls; combined with the public-facing API Gateway and trust boundary between API and Lambda, attackers can eavesdrop, inject payloads, and exploit Lambda to read/write all user data with no rate limiting or recovery mechanisms.",
+    "strideAnalysedAt": "2026-03-24T10:54:23.319Z"
+  }
+}
