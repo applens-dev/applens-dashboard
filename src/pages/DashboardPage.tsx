@@ -6,6 +6,34 @@ import DashboardGraph from "../components/graph/DashboardGraph";
 import { getCurrentUser, getUploads, type UploadJob } from "../api/uploads";
 import graphData from "../data/strideGraph.json";
 
+type ThreatLike = {
+  title?: string;
+};
+
+type DashboardGraphNode = {
+  id: string;
+  threats?: ThreatLike[];
+  data?: {
+    threats?: ThreatLike[];
+    shortType?: string;
+    label?: string;
+  };
+};
+
+type DashboardGraphEdge = {
+  id: string;
+  source: string;
+  target: string;
+  data?: {
+    boundaryThreats?: ThreatLike[];
+  };
+};
+
+type DashboardThreatGraph = {
+  nodes?: DashboardGraphNode[];
+  edges?: DashboardGraphEdge[];
+};
+
 function statusBadgeClass(status: string): string {
   const normalized = status.trim().toUpperCase();
   if (normalized === "SUCCEEDED") {
@@ -61,16 +89,16 @@ export default function DashboardPage() {
   })();
 
   const threatItems = useMemo(() => {
-    const nodeThreats = ((graphData as any).nodes ?? []).flatMap((node: any) =>
-      (node.threats ?? node.data?.threats ?? []).map((threat: any) => ({
+    const threatGraph = graphData as DashboardThreatGraph;
+    const nodeThreats = (threatGraph.nodes ?? []).flatMap((node) =>
+      (node.threats ?? node.data?.threats ?? []).map((threat) => ({
         key: `${node.id}-${threat.title ?? "threat"}`,
         title: threat.title ?? "Untitled threat",
         source: node.data?.shortType ?? node.data?.label ?? node.id,
       })),
     );
-    const boundaryThreats = ((graphData as any).edges ?? []).flatMap(
-      (edge: any) =>
-        (edge.data?.boundaryThreats ?? []).map((threat: any) => ({
+    const boundaryThreats = (threatGraph.edges ?? []).flatMap((edge) =>
+      (edge.data?.boundaryThreats ?? []).map((threat) => ({
           key: `${edge.id}-${threat.title ?? "boundary-threat"}`,
           title: threat.title ?? "Untitled boundary threat",
           source: `${edge.source} -> ${edge.target}`,
