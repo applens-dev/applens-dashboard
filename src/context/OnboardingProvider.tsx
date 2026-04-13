@@ -30,6 +30,8 @@ export function OnboardingProvider({
         })),
       setAwsConnected: (v: boolean) =>
         setState((s) => ({ ...s, awsConnected: v })),
+      setRoleArn: (arn: string) =>
+        setState((s) => ({ ...s, roleArn: arn })),
       setContextAssigned: (v: boolean) =>
         setState((s) => ({ ...s, contextAssigned: v })),
       reset: () => setState(DEFAULT_ONBOARDING_STATE),

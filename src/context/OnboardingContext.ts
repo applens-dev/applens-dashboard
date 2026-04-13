@@ -4,6 +4,7 @@ export type OnboardingState = {
   terraformUploadKey?: string;
   terraformFilename?: string;
   awsConnected: boolean;
+  roleArn?: string;
   contextAssigned: boolean;
 };
 
@@ -11,6 +12,7 @@ type OnboardingContextValue = {
   state: OnboardingState;
   setTerraformUpload: (args: { key: string; filename: string }) => void;
   setAwsConnected: (v: boolean) => void;
+  setRoleArn: (arn: string) => void;
   setContextAssigned: (v: boolean) => void;
   reset: () => void;
 };
