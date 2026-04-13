@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+    AppLens Customer Scanning Role.
+    Deploys a cross-account IAM Role that allows AppLens to assume into this
+    account, run AWS Inspector2 scans, and export SBOMs directly to the
+    central AppLens S3 bucket.
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Parameters
+# ──────────────────────────────────────────────────────────────────────────────
+Parameters:
+    AppLensAccountId:
+        Type: String
+        Description: >
+            The 12-digit AWS account ID of the AppLens central environment.
+            AppLens will provide this value to you.
+        AllowedPattern: "^[0-9]{12}$"
+        ConstraintDescription: Must be a 12-digit AWS account ID.
+
+    AppLensS3BucketArn:
+        Type: String
+        Description: >
+            The ARN of the central AppLens S3 bucket where SBOM exports will be
+            delivered (e.g. arn:aws:s3:::applens-dev-live-inventory-us-east-2).
+            AppLens will provide this value to you.
+        AllowedPattern: "^arn:aws:s3:::[a-z0-9.-]{3,63}$"
+        ConstraintDescription: Must be a valid S3 bucket ARN (no trailing slash or key prefix).
+
+    ExternalId:
+        Type: String
+        Description: >
+            A secret token provided by AppLens during onboarding. Used to prevent
+            confused-deputy attacks. AppLens will provide this value to you.
+        MinLength: 8
+
+    Environment:
+        Type: String
+        Description: The AppLens environment this role is registered to.
+        AllowedValues:
+            - dev
+            - staging
+            - prod
+        Default: prod
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Resources
+# ──────────────────────────────────────────────────────────────────────────────
+Resources:
+    AppLensScanningRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub "AppLensScanningRole-${Environment}"
+            Description: >
+                Assumed by AppLens to read Inspector2 findings and export SBOMs
+                to the AppLens central S3 bucket.
+
+            # ── Trust Policy ────────────────────────────────────────────────────────
+            # Grants AppLens's central AWS account permission to assume this role.
+            # The ExternalId condition prevents confused-deputy attacks: a third-party
+            # cannot trick AppLens into assuming this role on their behalf.
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Sid: AllowAppLensAssumeRole
+                      Effect: Allow
+                      Principal:
+                          AWS: !Sub "arn:aws:iam::${AppLensAccountId}:root"
+                      Action: sts:AssumeRole
+                      Condition:
+                          StringEquals:
+                              sts:ExternalId: !Ref ExternalId
+
+            # ── Permissions Policy ───────────────────────────────────────────────────
+            # Least-privilege: only the exact actions AppLens needs.
+            Policies:
+                - PolicyName: AppLensInspectorAndSbomPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          # Read Inspector2 findings in this account
+                          - Sid: InspectorReadFindings
+                            Effect: Allow
+                            Action:
+                                - inspector2:ListFindings
+                                - inspector2:CreateSbomExport
+                            Resource: "*"
+                            # Inspector2 actions do not support resource-level restrictions.
+
+                          # Write SBOM exports to the AppLens bucket under the sbom/ prefix
+                          - Sid: S3PutSbomObjects
+                            Effect: Allow
+                            Action:
+                                - s3:PutObject
+                            Resource:
+                                # Scoped to: sbom/<env>/<this-account-id>/*
+                                # This prevents one customer's role from writing to another
+                                # customer's prefix.
+                                - !Sub "${AppLensS3BucketArn}/sbom/${Environment}/${AWS::AccountId}/*"
+
+            Tags:
+                - Key: ManagedBy
+                  Value: AppLens
+                - Key: Environment
+                  Value: !Ref Environment
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Outputs
+# ──────────────────────────────────────────────────────────────────────────────
+Outputs:
+    RoleArn:
+        Description: >
+            The ARN of the AppLens Scanning Role. Copy this value and paste it
+            into the AppLens UI to complete the permission handshake.
+        Value: !GetAtt AppLensScanningRole.Arn
+        Export:
+            Name: !Sub "AppLensScanningRoleArn-${Environment}"
+
+    RoleName:
+        Description: The name of the created IAM Role.
+        Value: !Ref AppLensScanningRole
