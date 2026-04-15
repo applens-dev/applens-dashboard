@@ -77,15 +77,34 @@ Resources:
                   PolicyDocument:
                       Version: "2012-10-17"
                       Statement:
-                          # Read Inspector2 findings and manage SBOM exports in this account
-                          - Sid: InspectorReadFindings
+                          # Read Inspector2 findings, manage SBOM exports, and
+                          # enable/disable Inspector2 scanning in any region.
+                          # AppLens auto-enables Inspector2 in regions where it
+                          # discovers resources so the customer does not have to
+                          # do this manually per-region.
+                          - Sid: InspectorReadAndManage
                             Effect: Allow
                             Action:
                                 - inspector2:ListFindings
                                 - inspector2:CreateSbomExport
                                 - inspector2:GetSbomExport
+                                - inspector2:Enable
+                                - inspector2:Disable
+                                - inspector2:BatchGetAccountStatus
+                                - inspector2:ListCoverage
                             Resource: "*"
                             # Inspector2 actions do not support resource-level restrictions.
+
+                          # Discover which regions have resources so AppLens can
+                          # enable Inspector2 only where it is needed.
+                          - Sid: DiscoverRegionalResources
+                            Effect: Allow
+                            Action:
+                                - ec2:DescribeRegions
+                                - ec2:DescribeInstances
+                                - lambda:ListFunctions
+                                - ecr:DescribeRepositories
+                            Resource: "*"
 
                           # Write SBOM exports to the AppLens bucket under the sbom/ prefix
                           - Sid: S3PutSbomObjects
@@ -93,9 +112,9 @@ Resources:
                             Action:
                                 - s3:PutObject
                             Resource:
-                                # Scoped to: sbom/<env>/<this-account-id>/*
+                                # Scoped to: sbom/<env>/<this-account-id>/<region>/*
                                 # This prevents one customer's role from writing to another
-                                # customer's prefix.
+                                # customer's prefix. The wildcard covers all regions.
                                 - !Sub "${AppLensS3BucketArn}/sbom/${Environment}/${AWS::AccountId}/*"
 
                           # Manage WAF Web ACLs for automated remediation (Step 3)
