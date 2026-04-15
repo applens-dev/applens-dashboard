@@ -223,55 +223,8 @@ export default function ConnectAwsPage() {
       </div>
 
       {/* ARN Input Section */}
-      {!state.awsConnected ? (
-        <div className="mb-8 p-4 border border-(--input-border) rounded-lg bg-(--bg-secondary)">
-          <h3 className="text-lg font-semibold text-(--text-primary) mb-4">
-            Complete the Connection
-          </h3>
-
-          <p className="text-sm text-(--text-secondary) mb-4">
-            After deploying the CloudFormation template, paste the Role ARN from
-            the outputs section:
-          </p>
-
-          <div className="mb-4">
-            <label className="text-xs font-medium text-(--text-secondary) block mb-2">
-              Role ARN
-            </label>
-            <input
-              type="text"
-              placeholder="arn:aws:iam::123456789012:role/AppLensScanningRole-prod"
-              value={roleArnInput}
-              onChange={(e) => {
-                setRoleArnInput(e.target.value);
-                setVerifyError(null);
-              }}
-              disabled={verifying}
-              className="w-full px-3 py-2 text-sm bg-(--input-bg) border border-(--input-border) rounded text-(--text-primary) placeholder-text-(--text-secondary) focus:outline-none focus:ring-2 focus:ring-(--input-focus)"
-            />
-          </div>
-
-          {verifyError && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs font-medium text-red-700">Verification Failed</p>
-                <p className="text-xs text-red-600">{verifyError}</p>
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={handleVerifyRole}
-            disabled={verifying || !roleArnInput.trim()}
-            className="px-6 py-3 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {verifying && <Loader className="w-4 h-4 animate-spin" />}
-            {verifying ? "Verifying..." : "Verify Connection"}
-          </button>
-        </div>
-      ) : (
-        <div className="mb-8 p-4 border border-green-500/30 rounded-lg bg-green-500/5">
+      {state.awsConnected && (
+        <div className="mb-4 p-4 border border-green-500/30 rounded-lg bg-green-500/5">
           <p className="text-sm text-(--text-primary) flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-green-500" />
             AWS account connected successfully!
@@ -281,6 +234,53 @@ export default function ConnectAwsPage() {
           </p>
         </div>
       )}
+
+      <div className="mb-8 p-4 border border-(--input-border) rounded-lg bg-(--bg-secondary)">
+        <h3 className="text-lg font-semibold text-(--text-primary) mb-4">
+          {state.awsConnected ? "Update Connection" : "Complete the Connection"}
+        </h3>
+
+        <p className="text-sm text-(--text-secondary) mb-4">
+          After deploying the CloudFormation template, paste the Role ARN from
+          the outputs section:
+        </p>
+
+        <div className="mb-4">
+          <label className="text-xs font-medium text-(--text-secondary) block mb-2">
+            Role ARN
+          </label>
+          <input
+            type="text"
+            placeholder="arn:aws:iam::123456789012:role/AppLensScanningRole-prod"
+            value={roleArnInput}
+            onChange={(e) => {
+              setRoleArnInput(e.target.value);
+              setVerifyError(null);
+            }}
+            disabled={verifying}
+            className="w-full px-3 py-2 text-sm bg-(--input-bg) border border-(--input-border) rounded text-(--text-primary) placeholder-text-(--text-secondary) focus:outline-none focus:ring-2 focus:ring-(--input-focus)"
+          />
+        </div>
+
+        {verifyError && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-xs font-medium text-red-700">Verification Failed</p>
+              <p className="text-xs text-red-600">{verifyError}</p>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={handleVerifyRole}
+          disabled={verifying || !roleArnInput.trim()}
+          className="px-6 py-3 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          {verifying && <Loader className="w-4 h-4 animate-spin" />}
+          {verifying ? "Verifying..." : state.awsConnected ? "Update Connection" : "Verify Connection"}
+        </button>
+      </div>
 
       {/* Navigation */}
       {state.awsConnected && (

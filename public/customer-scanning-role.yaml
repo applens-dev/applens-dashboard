@@ -23,8 +23,8 @@ Parameters:
             The ARN of the central AppLens S3 bucket where SBOM exports will be
             delivered (e.g. arn:aws:s3:::applens-dev-live-inventory-us-east-2).
             AppLens will provide this value to you.
-        AllowedPattern: "^arn:aws:s3:::[a-z0-9.-]{3,63}$"
-        ConstraintDescription: Must be a valid S3 bucket ARN (no trailing slash or key prefix).
+        AllowedPattern: '^arn:aws:s3:::.+$'
+        ConstraintDescription: "Must be an S3 bucket ARN (e.g. arn:aws:s3:::my-bucket-name)"
 
     ExternalId:
         Type: String
@@ -51,8 +51,8 @@ Resources:
         Properties:
             RoleName: !Sub "AppLensScanningRole-${Environment}"
             Description: >
-                Assumed by AppLens to read Inspector2 findings and export SBOMs
-                to the AppLens central S3 bucket.
+                Assumed by AppLens to read Inspector2 findings, export SBOMs,
+                and apply automated remediation (WAF rules, security groups).
 
             # ── Trust Policy ────────────────────────────────────────────────────────
             # Grants AppLens's central AWS account permission to assume this role.
@@ -77,12 +77,13 @@ Resources:
                   PolicyDocument:
                       Version: "2012-10-17"
                       Statement:
-                          # Read Inspector2 findings in this account
+                          # Read Inspector2 findings and manage SBOM exports in this account
                           - Sid: InspectorReadFindings
                             Effect: Allow
                             Action:
                                 - inspector2:ListFindings
                                 - inspector2:CreateSbomExport
+                                - inspector2:GetSbomExport
                             Resource: "*"
                             # Inspector2 actions do not support resource-level restrictions.
 
@@ -96,6 +97,36 @@ Resources:
                                 # This prevents one customer's role from writing to another
                                 # customer's prefix.
                                 - !Sub "${AppLensS3BucketArn}/sbom/${Environment}/${AWS::AccountId}/*"
+
+                          # Manage WAF Web ACLs for automated remediation (Step 3)
+                          - Sid: WafRemediation
+                            Effect: Allow
+                            Action:
+                                - wafv2:GetWebACL
+                                - wafv2:ListWebACLs
+                                - wafv2:CreateWebACL
+                                - wafv2:UpdateWebACL
+                                - wafv2:GetRuleGroup
+                                - wafv2:ListRuleGroups
+                                - wafv2:CreateRuleGroup
+                                - wafv2:UpdateRuleGroup
+                            Resource: "*"
+                            # WAFv2 actions support resource-level restrictions
+                            # but are left broad here since AppLens needs to
+                            # discover and modify any Web ACL in the account.
+
+                          # Modify security groups for automated remediation (Step 3)
+                          - Sid: SecurityGroupRemediation
+                            Effect: Allow
+                            Action:
+                                - ec2:DescribeSecurityGroups
+                                - ec2:AuthorizeSecurityGroupIngress
+                                - ec2:RevokeSecurityGroupIngress
+                                - ec2:AuthorizeSecurityGroupEgress
+                                - ec2:RevokeSecurityGroupEgress
+                            Resource: "*"
+                            # Scoped to all security groups since AppLens needs
+                            # to remediate any SG flagged by the analysis.
 
             Tags:
                 - Key: ManagedBy
