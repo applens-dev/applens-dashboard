@@ -36,6 +36,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingUploadId, setDeletingUploadId] = useState<string | null>(null);
+  const [animatePipelineHealth, setAnimatePipelineHealth] = useState(false);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -92,6 +93,13 @@ export default function HomePage() {
   useEffect(() => {
     void loadJobs();
   }, [loadJobs]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setAnimatePipelineHealth(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const sortedJobs = useMemo(
     () => [...jobs].sort((a, b) => b.updatedAt - a.updatedAt),
@@ -206,15 +214,24 @@ export default function HomePage() {
                 <div className="h-full w-full flex">
                   <div
                     className="bg-green-300/80"
-                    style={{ width: `${completionRatio}%` }}
+                    style={{
+                      width: animatePipelineHealth ? `${completionRatio}%` : "0%",
+                      transition: "width 700ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    }}
                   />
                   <div
                     className="bg-amber-300/80"
-                    style={{ width: `${buildingRatio}%` }}
+                    style={{
+                      width: animatePipelineHealth ? `${buildingRatio}%` : "0%",
+                      transition: "width 700ms cubic-bezier(0.22, 1, 0.36, 1) 120ms",
+                    }}
                   />
                   <div
                     className="bg-red-300/80"
-                    style={{ width: `${failedRatio}%` }}
+                    style={{
+                      width: animatePipelineHealth ? `${failedRatio}%` : "0%",
+                      transition: "width 700ms cubic-bezier(0.22, 1, 0.36, 1) 220ms",
+                    }}
                   />
                 </div>
               </div>

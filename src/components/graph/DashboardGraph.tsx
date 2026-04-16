@@ -22,6 +22,8 @@ import type {
 
 const NODE_WIDTH = 172;
 const NODE_HEIGHT = 44;
+const NODE_HORIZONTAL_PADDING = 28;
+const LABEL_CHAR_WIDTH_ESTIMATE = 7;
 
 const THREAT_SURFACE_COLORS: Record<string, string> = {
   public: "#ef4444",
@@ -55,6 +57,10 @@ function normalizeStrideFlags(
 
 type DashboardGraphProps = {
   graphData: DashboardGraphData;
+  hoveredContext?: {
+    kind: "node" | "edge";
+    id: string;
+  } | null;
 };
 
 function getLayoutedNodes(nodes: Node[], edges: Edge[]) {
@@ -69,7 +75,12 @@ function getLayoutedNodes(nodes: Node[], edges: Edge[]) {
   });
 
   nodes.forEach((node) => {
-    graph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    const styleWidth =
+      typeof node.style?.width === "number"
+        ? node.style.width
+        : Number.parseFloat(String(node.style?.width ?? NODE_WIDTH));
+    const nodeWidth = Number.isFinite(styleWidth) ? styleWidth : NODE_WIDTH;
+    graph.setNode(node.id, { width: nodeWidth, height: NODE_HEIGHT });
   });
 
   edges.forEach((edge) => {
@@ -80,18 +91,26 @@ function getLayoutedNodes(nodes: Node[], edges: Edge[]) {
 
   return nodes.map((node) => {
     const position = graph.node(node.id);
+    const styleWidth =
+      typeof node.style?.width === "number"
+        ? node.style.width
+        : Number.parseFloat(String(node.style?.width ?? NODE_WIDTH));
+    const nodeWidth = Number.isFinite(styleWidth) ? styleWidth : NODE_WIDTH;
 
     return {
       ...node,
       position: {
-        x: position.x - NODE_WIDTH / 2,
+        x: position.x - nodeWidth / 2,
         y: position.y - NODE_HEIGHT / 2,
       },
     };
   });
 }
 
-export default function DashboardGraph({ graphData }: DashboardGraphProps) {
+export default function DashboardGraph({
+  graphData,
+  hoveredContext = null,
+}: DashboardGraphProps) {
   const [showMetadata, setShowMetadata] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedContext, setSelectedContext] = useState<{
@@ -108,13 +127,18 @@ export default function DashboardGraph({ graphData }: DashboardGraphProps) {
     return (graphData.nodes ?? []).map((node) => {
       const nodeThreats = getNodeThreats(node);
       const nodeData = node.data ?? {};
+      const label = nodeData.shortType ?? nodeData.label ?? node.id;
+      const computedNodeWidth = Math.max(
+        NODE_WIDTH,
+        String(label).length * LABEL_CHAR_WIDTH_ESTIMATE + NODE_HORIZONTAL_PADDING,
+      );
 
       return {
         id: node.id,
         className: "dashboard-flow-node",
         position: node.position ?? { x: 0, y: 0 },
         data: {
-          label: nodeData.shortType ?? nodeData.label ?? node.id,
+          label,
           threatCount: nodeThreats.length,
           threats: nodeThreats,
           strideFlags: normalizeStrideFlags(nodeData.strideFlags),
@@ -126,9 +150,12 @@ export default function DashboardGraph({ graphData }: DashboardGraphProps) {
             THREAT_SURFACE_COLORS[nodeData.threatSurface ?? ""] ??
             "rgba(255,255,255,0.18)"
           }`,
-          borderRadius: "8px",
+          borderRadius: "0",
           padding: "10px 14px",
           fontSize: "12px",
+          width: `${computedNodeWidth}px`,
+          whiteSpace: "nowrap",
+          boxSizing: "border-box",
         },
       };
     });
@@ -143,20 +170,6 @@ export default function DashboardGraph({ graphData }: DashboardGraphProps) {
         source: edge.source,
         target: edge.target,
         className: "dashboard-flow-edge",
-        label: edge.data?.relationshipType?.replaceAll("_", " "),
-        labelShowBg: true,
-        labelBgPadding: [6, 3],
-        labelBgBorderRadius: 6,
-        labelBgStyle: {
-          fill: hasBoundaryThreats ? "#2a1116" : "#0f0f0f",
-          fillOpacity: 0.95,
-        },
-        labelStyle: {
-          fill: hasBoundaryThreats
-            ? "rgba(251, 191, 201, 0.95)"
-            : "rgba(235,235,235,0.9)",
-          fontSize: 10,
-        },
         style: {
           stroke: hasBoundaryThreats
             ? "#fb7185"
@@ -210,9 +223,10 @@ export default function DashboardGraph({ graphData }: DashboardGraphProps) {
   const renderedNodes = useMemo(
     () =>
       flowNodes.map((node) => {
+        const effectiveContext = selectedContext ?? hoveredContext;
         const isSelected =
-          selectedContext?.kind === "node" && selectedContext.id === node.id;
-        const isDimmed = selectedContext?.kind === "node" && !isSelected;
+          effectiveContext?.kind === "node" && effectiveContext.id === node.id;
+        const isDimmed = effectiveContext?.kind === "node" && !isSelected;
         return {
           ...node,
           className: [
@@ -224,19 +238,20 @@ export default function DashboardGraph({ graphData }: DashboardGraphProps) {
             .join(" "),
         };
       }),
-    [flowNodes, selectedContext],
+    [flowNodes, hoveredContext, selectedContext],
   );
 
   const renderedEdges = useMemo(
     () =>
       flowEdges.map((edge) => {
+        const effectiveContext = selectedContext ?? hoveredContext;
         const boundaryThreats =
           (edge.data?.boundaryThreats as ThreatItem[] | undefined) ?? [];
         const hasBoundaryThreats =
           Boolean(edge.data?.trustBoundary) && boundaryThreats.length > 0;
         const isSelected =
-          selectedContext?.kind === "edge" && selectedContext.id === edge.id;
-        const isDimmed = selectedContext?.kind === "edge" && !isSelected;
+          effectiveContext?.kind === "edge" && effectiveContext.id === edge.id;
+        const isDimmed = effectiveContext?.kind === "edge" && !isSelected;
         return {
           ...edge,
           className: [
@@ -249,7 +264,7 @@ export default function DashboardGraph({ graphData }: DashboardGraphProps) {
             .join(" "),
         };
       }),
-    [flowEdges, selectedContext],
+    [flowEdges, hoveredContext, selectedContext],
   );
 
   const onNodeMouseEnter: NodeMouseHandler = (_event, node) => {

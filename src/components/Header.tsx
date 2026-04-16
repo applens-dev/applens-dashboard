@@ -147,7 +147,7 @@ export default function Header({
 
           {isLoggedIn ? (
             <nav className="flex items-center gap-5" aria-label="Primary">
-              <NavLink to="/home" className={appNavLinkClass}>
+              <NavLink to="/home" end className={appNavLinkClass}>
                 Home
               </NavLink>
             </nav>

@@ -42,6 +42,14 @@ export default function App() {
         }
       />
       <Route
+        path="/home/uploads/:uploadId/inventory"
+        element={
+          <ProtectedRoute>
+            <InventoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
@@ -61,7 +69,7 @@ export default function App() {
         path="/dashboard/inventory"
         element={
           <ProtectedRoute>
-            <InventoryPage />
+            <Navigate to="/home" replace />
           </ProtectedRoute>
         }
       />

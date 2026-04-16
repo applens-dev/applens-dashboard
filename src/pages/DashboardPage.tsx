@@ -1,5 +1,6 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import DashboardGraph from "../components/graph/DashboardGraph";
@@ -31,6 +32,16 @@ type ThreatLike = {
   title?: string;
 };
 
+type ThreatListItem = {
+  key: string;
+  title: string;
+  source: string;
+  graphContext?: {
+    kind: "node" | "edge";
+    id: string;
+  };
+};
+
 function isDashboardGraphData(value: unknown): value is DashboardGraphData {
   if (!value || typeof value !== "object") return false;
   const candidate = value as { nodes?: unknown; edges?: unknown };
@@ -45,12 +56,13 @@ function ensureDashboardGraphData(value: unknown): DashboardGraphData {
   return value;
 }
 
-function listThreatItems(graphData: DashboardGraphData) {
+function listThreatItems(graphData: DashboardGraphData): ThreatListItem[] {
   const nodeThreats = (graphData.nodes ?? []).flatMap((node: DashboardGraphNode) =>
     (node.threats ?? node.data?.threats ?? []).map((threat: ThreatLike) => ({
       key: `${node.id}-${threat.title ?? "threat"}`,
       title: threat.title ?? "Untitled threat",
       source: node.data?.shortType ?? node.data?.label ?? node.id,
+      graphContext: { kind: "node" as const, id: node.id },
     })),
   );
 
@@ -60,6 +72,7 @@ function listThreatItems(graphData: DashboardGraphData) {
         key: `${edge.id}-${threat.title ?? "boundary-threat"}`,
         title: threat.title ?? "Untitled boundary threat",
         source: `${edge.source} -> ${edge.target}`,
+        graphContext: { kind: "edge" as const, id: edge.id },
       })),
   );
 
@@ -78,6 +91,11 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [animatedRiskScore, setAnimatedRiskScore] = useState(0);
+  const [hoveredThreatContext, setHoveredThreatContext] = useState<{
+    kind: "node" | "edge";
+    id: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!uploadId) {
@@ -175,7 +193,7 @@ export default function DashboardPage() {
   const totalJobs = jobs.length;
   const riskScore =
     graphData?.metadata?.overallRiskScore !== undefined &&
-    graphData?.metadata?.overallRiskScore !== null
+      graphData?.metadata?.overallRiskScore !== null
       ? String(graphData.metadata.overallRiskScore)
       : "N/A";
 
@@ -184,11 +202,14 @@ export default function DashboardPage() {
   const normalizedRiskScore = hasNumericRiskScore
     ? Math.min(100, Math.max(0, numericRiskScore))
     : 0;
-  const progress = normalizedRiskScore / 100;
+  const progress = hasNumericRiskScore ? animatedRiskScore / 100 : 0;
   const ringRadius = 96;
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringOffset = ringCircumference * (1 - progress);
   const riskColor = `hsl(${(1 - progress) * 120} 80% 50%)`;
+  const displayedRiskScore = hasNumericRiskScore
+    ? String(Math.round(animatedRiskScore))
+    : riskScore;
   const recentJobs = useMemo(() => jobs.slice(0, 4), [jobs]);
 
   const showBlockedState =
@@ -198,6 +219,33 @@ export default function DashboardPage() {
     normalizeUploadStatus(uploadStatus) !== "SUCCEEDED";
 
   const graphReady = !isLoading && !loadError && !showBlockedState && !!graphData;
+
+  useEffect(() => {
+    if (!graphReady || !hasNumericRiskScore) {
+      setAnimatedRiskScore(0);
+      return;
+    }
+
+    let frame = 0;
+    let startTime: number | null = null;
+    const durationMs = 900;
+    const target = normalizedRiskScore;
+
+    const step = (timestamp: number) => {
+      if (startTime === null) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const t = Math.min(1, elapsed / durationMs);
+      const eased =
+        t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+      setAnimatedRiskScore(target * eased);
+      if (t < 1) frame = window.requestAnimationFrame(step);
+    };
+
+    setAnimatedRiskScore(0);
+    frame = window.requestAnimationFrame(step);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [graphReady, hasNumericRiskScore, normalizedRiskScore, uploadId]);
 
   const handleDeleteUpload = async () => {
     if (!uploadId) return;
@@ -232,7 +280,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary) relative overflow-hidden">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0"
+        className="pointer-events-none fixed inset-0 z-0"
         style={{
           background:
             "radial-gradient(50rem 26rem at 12% -4%, rgba(56, 189, 248, 0.11), transparent 64%), radial-gradient(42rem 24rem at 92% 12%, rgba(244, 63, 94, 0.09), transparent 67%), radial-gradient(54rem 32rem at 52% 100%, rgba(250, 204, 21, 0.06), transparent 68%)",
@@ -240,15 +288,15 @@ export default function DashboardPage() {
       />
       <div
         aria-hidden="true"
-        className="dashboard-grid-bg pointer-events-none absolute inset-0 z-0 opacity-45"
+        className="dashboard-grid-bg pointer-events-none fixed inset-0 z-0 opacity-45"
       />
       <Header loggedIn />
 
       <div className="relative z-10 px-6 sm:px-10 lg:px-14 xl:px-20 pt-12 pb-20">
         <section className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6 items-stretch">
-          <div className="pt-4 sm:pt-5 px-1 sm:px-2">
+          <div className="pt-4">
             <p className="text-xs tracking-[0.18em] uppercase text-(--text-muted)">
-              AppLens Overview
+              Overview
             </p>
             <h2 className="mt-3 text-3xl sm:text-4xl font-semibold leading-tight">
               Good morning, <span className="opacity-90">{displayName}</span>.
@@ -261,18 +309,14 @@ export default function DashboardPage() {
               identified in the architecture analysis.
             </p>
           </div>
-          <div className="border border-(--border) bg-black/20 backdrop-blur-sm rounded-none p-6 sm:p-8 flex items-center justify-between gap-4">
+          <div className="border h-16 border-(--border) bg-black/20 backdrop-blur-sm rounded-none p-6 sm:p-8 flex items-center justify-between gap-4">
             <div>
               <p className="text-xs tracking-[0.18em] uppercase text-(--text-muted)">
                 Upload Status
               </p>
-              <p className="mt-2 text-lg font-medium">Analysis snapshot</p>
-              <p className="mt-2 text-sm text-(--text-secondary) font-light">
-                Graph and STRIDE findings for this specific upload run.
-              </p>
             </div>
             <span
-              className={`shrink-0 inline-flex px-3 py-1.5 text-[11px] tracking-[0.12em] uppercase border rounded-sm ${uploadStatusBadgeClass(uploadStatus ?? "UNKNOWN")}`}
+              className={`shrink-0 inline-flex px-3 py-1.5 text-[11px] tracking-[0.12em] uppercase border ${uploadStatusBadgeClass(uploadStatus ?? "UNKNOWN")}`}
             >
               {formatUploadStatusLabel(uploadStatus ?? "UNKNOWN")}
             </span>
@@ -299,7 +343,10 @@ export default function DashboardPage() {
 
         {!graphReady && !loadError && !showBlockedState && (
           <section className="mt-6 border border-(--border) bg-black/25 backdrop-blur-sm rounded-none px-5 py-8 text-sm text-(--text-secondary)">
-            Loading upload dashboard artifacts...
+            <div className="flex items-center justify-center gap-2.5">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading upload dashboard artifacts...</span>
+            </div>
           </section>
         )}
 
@@ -315,7 +362,7 @@ export default function DashboardPage() {
                     className="mt-2 text-2xl font-semibold"
                     style={{ color: hasNumericRiskScore ? riskColor : undefined }}
                   >
-                    {riskScore}
+                    {displayedRiskScore}
                   </div>
                 </div>
                 <div className="px-6 py-6 sm:px-7 border-b lg:border-b-0 lg:border-r border-(--border)">
@@ -363,12 +410,11 @@ export default function DashboardPage() {
                             : "rgba(255, 255, 255, 0.35)"
                         }
                         strokeWidth="14"
-                        strokeLinecap="round"
+                        strokeLinecap="butt"
                         strokeDasharray={ringCircumference}
                         strokeDashoffset={ringOffset}
                         style={{
-                          transition:
-                            "stroke-dashoffset 400ms ease, stroke 300ms ease",
+                          transition: "stroke 150ms ease",
                         }}
                       />
                     </svg>
@@ -384,7 +430,7 @@ export default function DashboardPage() {
                             color: hasNumericRiskScore ? riskColor : undefined,
                           }}
                         >
-                          {riskScore}
+                          {displayedRiskScore}
                         </div>
                       </div>
                     </div>
@@ -405,12 +451,21 @@ export default function DashboardPage() {
                     threatItems.slice(0, 8).map((threat, idx) => (
                       <div
                         key={`${threat.key}-${idx}`}
-                        className="px-5 py-4 border-b border-(--border) last:border-b-0 flex items-center justify-between gap-3"
+                        className="px-5 py-3 border-b border-(--border) last:border-b-0 flex items-center justify-between gap-3 transition-colors hover:bg-white/6 cursor-pointer"
+                        onMouseEnter={() =>
+                          setHoveredThreatContext(threat.graphContext ?? null)
+                        }
+                        onMouseLeave={() => setHoveredThreatContext(null)}
                       >
-                        <span className="font-light truncate">
-                          {idx + 1}. {threat.title}
-                        </span>
-                        <span className="opacity-70 shrink-0 text-xs truncate max-w-[120px]">
+                        <div className="min-w-0 flex items-center gap-2.5">
+                          <span className="text-[11px] text-(--text-muted) shrink-0 tabular-nums">
+                            {idx + 1}.
+                          </span>
+                          <span className="text-[13px] leading-5 font-normal truncate">
+                            {threat.title}
+                          </span>
+                        </div>
+                        <span className="shrink-0 max-w-[130px] truncate px-2 py-1 border border-white/10 bg-white/5 text-[10px] tracking-[0.08em] uppercase text-(--text-secondary)">
                           {threat.source}
                         </span>
                       </div>
@@ -421,15 +476,29 @@ export default function DashboardPage() {
 
               <div className="space-y-6">
                 <div className="border border-(--border) bg-black/25 backdrop-blur-sm rounded-none p-4 sm:p-5">
-                  <div className="mb-3 px-2">
-                    <h3 className="text-base font-semibold">
-                      Live Service Inventory
-                    </h3>
-                    <p className="text-xs text-(--text-muted) mt-1">
-                      Relationship map of currently tracked components and findings.
-                    </p>
+                  <div className="mb-3 px-2 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-semibold">
+                        Live Service Inventory
+                      </h3>
+                      <p className="text-xs text-(--text-muted) mt-1">
+                        Relationship map of currently tracked components and findings.
+                      </p>
+                    </div>
+                    {uploadId && (
+                      <Link
+                        to={`/home/uploads/${uploadId}/inventory`}
+                        className="inline-flex items-center justify-center px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] border border-(--input-focus) hover:border-white/40 shrink-0"
+                      >
+                        Open Inventory
+                      </Link>
+                    )}
                   </div>
-                  <DashboardGraph key={uploadId} graphData={graphData} />
+                  <DashboardGraph
+                    key={uploadId}
+                    graphData={graphData}
+                    hoveredContext={hoveredThreatContext}
+                  />
                 </div>
 
                 <div className="border border-(--border) bg-black/25 backdrop-blur-sm rounded-none overflow-hidden">
@@ -469,25 +538,6 @@ export default function DashboardPage() {
             </section>
           </>
         )}
-
-        <section className="mt-8">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to="/home"
-              className="inline-flex items-center justify-center px-4 py-2 text-xs uppercase tracking-[0.12em] border border-(--input-focus) hover:border-white/40"
-            >
-              Back to Home
-            </Link>
-            <button
-              type="button"
-              onClick={() => void handleDeleteUpload()}
-              disabled={isDeleting}
-              className="inline-flex items-center justify-center px-4 py-2 text-xs uppercase tracking-[0.12em] border border-red-300/40 text-red-100 hover:border-red-200/70 disabled:opacity-50"
-            >
-              {isDeleting ? "Deleting Upload..." : "Delete Upload"}
-            </button>
-          </div>
-        </section>
       </div>
     </div>
   );
