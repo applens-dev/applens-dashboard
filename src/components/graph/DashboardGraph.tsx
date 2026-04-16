@@ -1,5 +1,5 @@
 import dagre from "@dagrejs/dagre";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import ReactFlow, {
   MarkerType,
@@ -13,56 +13,13 @@ import ReactFlow, {
   type Node,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import graphData from "../../data/strideGraph.json";
+import type {
+  DashboardGraphData,
+  DashboardGraphNode,
+  GraphStrideFlags,
+  ThreatItem,
+} from "../../types/dashboardArtifacts";
 
-type ThreatItem = {
-  stride?: string;
-  category?: string;
-  title?: string;
-  description?: string;
-  mitigations?: string[];
-};
-
-type RawGraphNode = {
-  id: string;
-  position: { x: number; y: number };
-  threats?: ThreatItem[];
-  data: {
-    label?: string;
-    shortType?: string;
-    threatSurface?: string;
-    threats?: ThreatItem[];
-    strideFlags?: string[] | Record<string, boolean>;
-  };
-};
-
-type RawGraphEdge = {
-  id: string;
-  source: string;
-  target: string;
-  data?: {
-    relationshipType?: string;
-    trustBoundary?: boolean;
-    boundaryThreats?: ThreatItem[];
-  };
-};
-
-type RawDashboardGraphData = {
-  nodes: RawGraphNode[];
-  edges: RawGraphEdge[];
-  metadata?: {
-    parsedAt?: string;
-    sourceFiles?: string[];
-    tfVersion?: string;
-    unresolvedDataSources?: string[];
-    parseWarnings?: string[];
-    overallRiskScore?: string | number;
-    riskRationale?: string;
-    strideAnalysedAt?: string;
-  };
-};
-
-const typedGraphData = graphData as RawDashboardGraphData;
 const NODE_WIDTH = 172;
 const NODE_HEIGHT = 44;
 
@@ -82,12 +39,12 @@ const THREAT_SURFACE_LEGEND = [
   { label: "Unknown", color: "rgba(255,255,255,0.5)" },
 ];
 
-function getNodeThreats(node: RawGraphNode): ThreatItem[] {
-  return node.threats ?? node.data.threats ?? [];
+function getNodeThreats(node: DashboardGraphNode): ThreatItem[] {
+  return node.threats ?? node.data?.threats ?? [];
 }
 
 function normalizeStrideFlags(
-  strideFlags: RawGraphNode["data"]["strideFlags"],
+  strideFlags: GraphStrideFlags,
 ): string[] {
   if (Array.isArray(strideFlags)) return strideFlags;
   if (!strideFlags) return [];
@@ -96,80 +53,9 @@ function normalizeStrideFlags(
     .map(([flag]) => flag);
 }
 
-const baseNodes: Node[] = typedGraphData.nodes.map((node) => {
-  const nodeThreats = getNodeThreats(node);
-
-  return {
-    id: node.id,
-    className: "dashboard-flow-node",
-    position: node.position,
-    data: {
-      label: node.data.shortType ?? node.data.label ?? node.id,
-      threatCount: nodeThreats.length,
-      threats: nodeThreats,
-      strideFlags: normalizeStrideFlags(node.data.strideFlags),
-    },
-    style: {
-      background: "#101216",
-      color: "#ebebeb",
-      border: `1px solid ${
-        THREAT_SURFACE_COLORS[node.data.threatSurface ?? ""] ??
-        "rgba(255,255,255,0.18)"
-      }`,
-      borderRadius: "8px",
-      padding: "10px 14px",
-      fontSize: "12px",
-    },
-  };
-});
-
-const edges: Edge[] = typedGraphData.edges.map((edge) => {
-  const hasBoundaryThreats = (edge.data?.boundaryThreats?.length ?? 0) > 0;
-
-  return {
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    className: "dashboard-flow-edge",
-    label: edge.data?.relationshipType?.replaceAll("_", " "),
-    labelShowBg: true,
-    labelBgPadding: [6, 3],
-    labelBgBorderRadius: 6,
-    labelBgStyle: {
-      fill: hasBoundaryThreats ? "#2a1116" : "#0f0f0f",
-      fillOpacity: 0.95,
-    },
-    labelStyle: {
-      fill: hasBoundaryThreats
-        ? "rgba(251, 191, 201, 0.95)"
-        : "rgba(235,235,235,0.9)",
-      fontSize: 10,
-    },
-    style: {
-      stroke: hasBoundaryThreats
-        ? "#fb7185"
-        : edge.data?.trustBoundary
-          ? "#f59e0b"
-          : "rgba(255,255,255,0.45)",
-      strokeWidth: hasBoundaryThreats
-        ? 2.6
-        : edge.data?.trustBoundary
-          ? 2
-          : 1.2,
-      strokeDasharray: hasBoundaryThreats ? "4 4" : "8 6",
-      strokeDashoffset: 0,
-    },
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      color: hasBoundaryThreats ? "#fb7185" : "rgba(255,255,255,0.6)",
-    },
-    data: {
-      boundaryThreats: edge.data?.boundaryThreats ?? [],
-      trustBoundary: edge.data?.trustBoundary ?? false,
-      relationshipType: edge.data?.relationshipType ?? "",
-    },
-  };
-});
+type DashboardGraphProps = {
+  graphData: DashboardGraphData;
+};
 
 function getLayoutedNodes(nodes: Node[], edges: Edge[]) {
   const graph = new dagre.graphlib.Graph();
@@ -205,7 +91,7 @@ function getLayoutedNodes(nodes: Node[], edges: Edge[]) {
   });
 }
 
-export default function DashboardGraph() {
+export default function DashboardGraph({ graphData }: DashboardGraphProps) {
   const [showMetadata, setShowMetadata] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedContext, setSelectedContext] = useState<{
@@ -218,11 +104,98 @@ export default function DashboardGraph() {
     threats: ThreatItem[];
     subtitle?: string;
   } | null>(null);
-  const [flowNodes, , onNodesChange] = useNodesState(
-    getLayoutedNodes(baseNodes, edges),
+  const baseNodes = useMemo<Node[]>(() => {
+    return (graphData.nodes ?? []).map((node) => {
+      const nodeThreats = getNodeThreats(node);
+      const nodeData = node.data ?? {};
+
+      return {
+        id: node.id,
+        className: "dashboard-flow-node",
+        position: node.position ?? { x: 0, y: 0 },
+        data: {
+          label: nodeData.shortType ?? nodeData.label ?? node.id,
+          threatCount: nodeThreats.length,
+          threats: nodeThreats,
+          strideFlags: normalizeStrideFlags(nodeData.strideFlags),
+        },
+        style: {
+          background: "#101216",
+          color: "#ebebeb",
+          border: `1px solid ${
+            THREAT_SURFACE_COLORS[nodeData.threatSurface ?? ""] ??
+            "rgba(255,255,255,0.18)"
+          }`,
+          borderRadius: "8px",
+          padding: "10px 14px",
+          fontSize: "12px",
+        },
+      };
+    });
+  }, [graphData.nodes]);
+
+  const baseEdges = useMemo<Edge[]>(() => {
+    return (graphData.edges ?? []).map((edge) => {
+      const hasBoundaryThreats = (edge.data?.boundaryThreats?.length ?? 0) > 0;
+
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        className: "dashboard-flow-edge",
+        label: edge.data?.relationshipType?.replaceAll("_", " "),
+        labelShowBg: true,
+        labelBgPadding: [6, 3],
+        labelBgBorderRadius: 6,
+        labelBgStyle: {
+          fill: hasBoundaryThreats ? "#2a1116" : "#0f0f0f",
+          fillOpacity: 0.95,
+        },
+        labelStyle: {
+          fill: hasBoundaryThreats
+            ? "rgba(251, 191, 201, 0.95)"
+            : "rgba(235,235,235,0.9)",
+          fontSize: 10,
+        },
+        style: {
+          stroke: hasBoundaryThreats
+            ? "#fb7185"
+            : edge.data?.trustBoundary
+              ? "#f59e0b"
+              : "rgba(255,255,255,0.45)",
+          strokeWidth: hasBoundaryThreats
+            ? 2.6
+            : edge.data?.trustBoundary
+              ? 2
+              : 1.2,
+          strokeDasharray: hasBoundaryThreats ? "4 4" : "8 6",
+          strokeDashoffset: 0,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: hasBoundaryThreats ? "#fb7185" : "rgba(255,255,255,0.6)",
+        },
+        data: {
+          boundaryThreats: edge.data?.boundaryThreats ?? [],
+          trustBoundary: edge.data?.trustBoundary ?? false,
+          relationshipType: edge.data?.relationshipType ?? "",
+        },
+      };
+    });
+  }, [graphData.edges]);
+
+  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(
+    getLayoutedNodes(baseNodes, baseEdges),
   );
-  const [flowEdges, , onEdgesChange] = useEdgesState(edges);
-  const metadata = typedGraphData.metadata;
+  const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(baseEdges);
+  const metadata = graphData.metadata;
+
+  useEffect(() => {
+    setFlowNodes(getLayoutedNodes(baseNodes, baseEdges));
+    setFlowEdges(baseEdges);
+    setSelectedContext(null);
+    setActiveThreatContext(null);
+  }, [baseEdges, baseNodes, setFlowEdges, setFlowNodes]);
 
   const parsedAtLabel = metadata?.parsedAt
     ? new Date(metadata.parsedAt).toLocaleString()
@@ -387,8 +360,8 @@ export default function DashboardGraph() {
     <div
       className={`border border-(--border) bg-white/2 w-full overflow-hidden relative ${
         expanded
-          ? "h-[90vh] max-h-[960px] rounded-2xl shadow-2xl"
-          : "h-[520px] rounded-xl"
+          ? "h-[90vh] max-h-[960px] rounded-none shadow-2xl"
+          : "h-[520px] rounded-none"
       }`}
     >
       <div className="h-11 border-b border-white/10 bg-black/20 px-3 flex items-center justify-between">
@@ -399,14 +372,14 @@ export default function DashboardGraph() {
           <button
             type="button"
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="px-2.5 py-1.5 rounded-md border cursor-pointer border-white/20 bg-white/5 text-[11px] tracking-[0.08em] uppercase text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+            className="px-2.5 py-1.5 rounded-none border cursor-pointer border-white/20 bg-white/5 text-[11px] tracking-[0.08em] uppercase text-white/80 hover:bg-white/10 hover:text-white transition-colors"
           >
             {expanded ? "Close Expanded" : "Expand"}
           </button>
           <button
             type="button"
             onClick={() => setShowMetadata((prev) => !prev)}
-            className="px-2.5 py-1.5 rounded-md border cursor-pointer border-white/20 bg-white/5 text-[11px] tracking-[0.08em] uppercase text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+            className="px-2.5 py-1.5 rounded-none border cursor-pointer border-white/20 bg-white/5 text-[11px] tracking-[0.08em] uppercase text-white/80 hover:bg-white/10 hover:text-white transition-colors"
           >
             {showMetadata ? "Hide" : "Show"} Metadata
           </button>
@@ -436,7 +409,7 @@ export default function DashboardGraph() {
       </div>
 
       {activeThreatContext && (
-        <aside className="absolute bottom-3 right-3 z-10 w-[360px] max-w-[calc(100%-24px)] rounded-xl border border-rose-300/25 bg-[#1b1012]/95 backdrop-blur-sm shadow-lg p-3">
+        <aside className="absolute bottom-3 right-3 z-10 w-[360px] max-w-[calc(100%-24px)] rounded-none border border-rose-300/25 bg-[#1b1012]/95 backdrop-blur-sm shadow-lg p-3">
           <div className="flex items-center justify-between gap-3">
             <h4 className="text-xs tracking-[0.14em] uppercase text-rose-100/85 font-semibold">
               {activeThreatContext.kind === "edge"
@@ -461,7 +434,7 @@ export default function DashboardGraph() {
             {activeThreatContext.threats.map((threat, index) => (
               <div
                 key={`${threat.title ?? "threat"}-${index}`}
-                className="rounded-lg border border-rose-300/20 bg-white/5 px-2.5 py-2"
+                className="rounded-none border border-rose-300/20 bg-white/5 px-2.5 py-2"
               >
                 <p className="text-[11px] font-semibold text-rose-100/95">
                   [{threat.category?.[0] ?? "?"}]{" "}
@@ -477,7 +450,7 @@ export default function DashboardGraph() {
       )}
 
       {showMetadata && (
-        <aside className="absolute top-14 left-3 z-10 w-[320px] max-w-[calc(100%-24px)] max-h-[calc(100%-68px)] overflow-auto rounded-xl border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3">
+        <aside className="absolute top-14 left-3 z-10 w-[320px] max-w-[calc(100%-24px)] max-h-[calc(100%-68px)] overflow-auto rounded-none border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3">
           <div className="flex items-center justify-between gap-3">
             <h4 className="text-xs tracking-[0.14em] uppercase text-white/70 font-semibold">
               Graph Intelligence
@@ -486,20 +459,20 @@ export default function DashboardGraph() {
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
+            <div className="rounded-none bg-white/5 border border-white/10 px-2.5 py-2">
               <div className="text-[10px] uppercase tracking-[0.1em] text-white/55">
                 Nodes
               </div>
               <div className="text-lg font-semibold text-white/95">
-                {typedGraphData.nodes.length}
+                {graphData.nodes?.length ?? 0}
               </div>
             </div>
-            <div className="rounded-lg bg-white/5 border border-white/10 px-2.5 py-2">
+            <div className="rounded-none bg-white/5 border border-white/10 px-2.5 py-2">
               <div className="text-[10px] uppercase tracking-[0.1em] text-white/55">
                 Edges
               </div>
               <div className="text-lg font-semibold text-white/95">
-                {typedGraphData.edges.length}
+                {graphData.edges?.length ?? 0}
               </div>
             </div>
           </div>
@@ -526,7 +499,7 @@ export default function DashboardGraph() {
           </div>
 
           {metadata?.riskRationale && (
-            <div className="mt-3 rounded-lg border border-rose-300/25 bg-rose-300/10 px-2.5 py-2">
+            <div className="mt-3 rounded-none border border-rose-300/25 bg-rose-300/10 px-2.5 py-2">
               <p className="text-[10px] uppercase tracking-[0.1em] text-rose-100/80">
                 Risk Rationale
               </p>
@@ -547,7 +520,7 @@ export default function DashboardGraph() {
                 sourceFiles.map((file) => (
                   <span
                     key={file}
-                    className="px-2 py-1 rounded-md border border-cyan-300/25 bg-cyan-300/10 text-cyan-100 text-[11px]"
+                    className="px-2 py-1 rounded-none border border-cyan-300/25 bg-cyan-300/10 text-cyan-100 text-[11px]"
                   >
                     {file}
                   </span>
@@ -559,7 +532,7 @@ export default function DashboardGraph() {
           {(parseWarnings.length > 0 || unresolvedDataSources.length > 0) && (
             <div className="mt-3 space-y-2">
               {parseWarnings.length > 0 && (
-                <div className="rounded-lg border border-amber-300/25 bg-amber-300/10 px-2.5 py-2">
+                <div className="rounded-none border border-amber-300/25 bg-amber-300/10 px-2.5 py-2">
                   <p className="text-[10px] uppercase tracking-[0.1em] text-amber-100/80">
                     Parse Warnings ({parseWarnings.length})
                   </p>
@@ -570,7 +543,7 @@ export default function DashboardGraph() {
               )}
 
               {unresolvedDataSources.length > 0 && (
-                <div className="rounded-lg border border-rose-300/25 bg-rose-300/10 px-2.5 py-2">
+                <div className="rounded-none border border-rose-300/25 bg-rose-300/10 px-2.5 py-2">
                   <p className="text-[10px] uppercase tracking-[0.1em] text-rose-100/85">
                     Unresolved ({unresolvedDataSources.length})
                   </p>
@@ -585,7 +558,7 @@ export default function DashboardGraph() {
       )}
 
       {expanded && (
-        <aside className="absolute bottom-3 left-3 z-10 rounded-xl border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3">
+        <aside className="absolute bottom-3 left-3 z-10 rounded-none border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3">
           <h4 className="text-[10px] tracking-[0.14em] uppercase text-white/70 font-semibold">
             Legend
           </h4>

@@ -1,12 +1,19 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertCircle,
   Loader2,
   RefreshCw,
 } from "lucide-react";
 import Header from "../components/Header";
-import { getUploads, type UploadJob } from "../api/uploads";
+import { deleteUpload, getUploads, type UploadJob } from "../api/uploads";
+import {
+  formatUploadStatusLabel,
+  isUploadInProgress,
+  normalizeUploadStatus,
+  uploadStatusBadgeClass,
+} from "../types/uploadStatus";
 
 function formatTimestamp(ms: number): string {
   if (!Number.isFinite(ms)) return "-";
@@ -16,24 +23,6 @@ function formatTimestamp(ms: number): string {
   }).format(new Date(ms));
 }
 
-function normalizeStatus(status: string): string {
-  return status.trim().toUpperCase();
-}
-
-function statusBadgeClass(status: string): string {
-  const normalized = normalizeStatus(status);
-  if (normalized === "SUCCEEDED") {
-    return "border-green-300/30 text-green-200 bg-green-400/10";
-  }
-  if (normalized === "FAILED") {
-    return "border-red-300/30 text-red-200 bg-red-400/10";
-  }
-  if (normalized === "BUILDING") {
-    return "border-amber-300/30 text-amber-200 bg-amber-400/10";
-  }
-  return "border-(--border) text-(--text-secondary) bg-white/5";
-}
-
 function clipMiddle(value: string, max = 40): string {
   if (value.length <= max) return value;
   const head = value.slice(0, Math.ceil(max * 0.55));
@@ -41,11 +30,12 @@ function clipMiddle(value: string, max = 40): string {
   return `${head}...${tail}`;
 }
 
-export default function UploadsPage() {
+export default function HomePage() {
   const { getAccessTokenSilently } = useAuth0();
   const [jobs, setJobs] = useState<UploadJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingUploadId, setDeletingUploadId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -67,6 +57,38 @@ export default function UploadsPage() {
     }
   }, [getAccessTokenSilently]);
 
+  const handleDeleteUpload = useCallback(
+    async (uploadId: string) => {
+      const confirmed = window.confirm(
+        "Delete this upload and all of its S3 artifacts?",
+      );
+      if (!confirmed) return;
+
+      try {
+        setDeletingUploadId(uploadId);
+        setError(null);
+
+        const accessToken = await getAccessTokenSilently({
+          authorizationParams: {
+            audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+          },
+        });
+
+        await deleteUpload(uploadId, accessToken);
+        setJobs((prev) => prev.filter((job) => job.uploadId !== uploadId));
+      } catch (e: unknown) {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Failed to delete upload and artifacts.",
+        );
+      } finally {
+        setDeletingUploadId(null);
+      }
+    },
+    [getAccessTokenSilently],
+  );
+
   useEffect(() => {
     void loadJobs();
   }, [loadJobs]);
@@ -85,9 +107,9 @@ export default function UploadsPage() {
     };
 
     for (const job of sortedJobs) {
-      const status = normalizeStatus(job.status);
+      const status = normalizeUploadStatus(job.status);
       if (status === "SUCCEEDED") counts.succeeded += 1;
-      else if (status === "BUILDING") counts.building += 1;
+      else if (isUploadInProgress(status)) counts.building += 1;
       else if (status === "FAILED") counts.failed += 1;
       else counts.other += 1;
     }
@@ -106,6 +128,20 @@ export default function UploadsPage() {
   const buildingRatio =
     summary.total > 0 ? Math.round((summary.building / summary.total) * 100) : 0;
 
+  const inProgressJobs = useMemo(
+    () =>
+      sortedJobs.filter((job) => isUploadInProgress(normalizeUploadStatus(job.status))),
+    [sortedJobs],
+  );
+  const failedJobs = useMemo(
+    () => sortedJobs.filter((job) => normalizeUploadStatus(job.status) === "FAILED"),
+    [sortedJobs],
+  );
+  const succeededJobs = useMemo(
+    () => sortedJobs.filter((job) => normalizeUploadStatus(job.status) === "SUCCEEDED"),
+    [sortedJobs],
+  );
+
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary) relative overflow-hidden">
       <div
@@ -116,20 +152,20 @@ export default function UploadsPage() {
             "radial-gradient(42rem 24rem at 2% 4%, rgba(14, 165, 233, 0.11), transparent 64%), radial-gradient(42rem 24rem at 98% 10%, rgba(16, 185, 129, 0.1), transparent 66%), radial-gradient(54rem 32rem at 52% 105%, rgba(250, 204, 21, 0.06), transparent 68%)",
         }}
       />
-      <Header title="Uploads" loggedIn />
+      <Header title="Home" loggedIn />
 
       <div className="relative z-10 px-6 sm:px-10 lg:px-14 xl:px-20 pt-12 pb-20">
         <section className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
           <div>
             <p className="text-[11px] font-medium tracking-[0.2em] text-(--text-muted) uppercase">
-              Your Uploads
+              AppLens Home
             </p>
             <h2 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-tight">
-              Terraform Upload Jobs
+              AppLens Dashboard
             </h2>
             <p className="mt-3 text-sm text-(--text-secondary) max-w-2xl">
-              Monitor pipeline progress, troubleshoot failures, and confirm plan
-              and graph artifacts for each upload.
+              Track upload health, triage failed or in-progress runs, and jump
+              directly into the latest successful analyses.
             </p>
           </div>
 
@@ -154,13 +190,13 @@ export default function UploadsPage() {
         </section>
 
         {error && (
-          <div className="mt-6 border border-red-300/30 bg-red-400/10 rounded-xl px-5 py-4 text-sm text-red-200 flex items-start gap-2.5">
+          <div className="mt-6 border border-red-300/30 bg-red-400/10 rounded-none px-5 py-4 text-sm text-red-200 flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        <section className="mt-6 border border-(--border) bg-black/25 backdrop-blur-sm rounded-2xl overflow-hidden">
+        <section className="mt-6 border border-(--border) bg-black/25 backdrop-blur-sm rounded-none overflow-hidden">
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
             <div className="px-6 py-6 sm:px-8 sm:py-7 border-b xl:border-b-0 xl:border-r border-(--border)">
               <p className="text-[11px] tracking-[0.14em] uppercase text-(--text-muted)">
@@ -226,8 +262,91 @@ export default function UploadsPage() {
           </div>
         </section>
 
+        <section className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="border border-(--border) bg-black/20 backdrop-blur-sm rounded-none overflow-hidden">
+            <div className="px-5 py-4 border-b border-(--border)">
+              <h3 className="text-base font-semibold">Work Queue</h3>
+              <p className="mt-1 text-xs text-(--text-muted)">
+                Runs that need attention now.
+              </p>
+            </div>
+            <div className="divide-y divide-(--border)">
+              {inProgressJobs.length === 0 && failedJobs.length === 0 ? (
+                <div className="px-5 py-8 text-sm text-(--text-muted)">
+                  No active or failed runs right now.
+                </div>
+              ) : (
+                [...inProgressJobs.slice(0, 4), ...failedJobs.slice(0, 4)].map((job) => (
+                  <div
+                    key={`queue-${job.uploadId}`}
+                    className="px-5 py-4 flex items-start justify-between gap-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{job.uploadId}</p>
+                      <p className="mt-1 text-xs text-(--text-secondary) truncate">
+                        {clipMiddle(job.sourceKey, 58)}
+                      </p>
+                      {job.lastError && (
+                        <p className="mt-1 text-xs text-red-200 truncate">
+                          {job.lastError}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span
+                        className={`inline-flex px-2.5 py-1 text-[11px] tracking-[0.12em] uppercase border rounded-none ${uploadStatusBadgeClass(job.status)}`}
+                      >
+                        {formatUploadStatusLabel(job.status)}
+                      </span>
+                      <p className="mt-2 text-[11px] text-(--text-muted)">
+                        {formatTimestamp(job.updatedAt)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="border border-(--border) bg-black/20 backdrop-blur-sm rounded-none overflow-hidden">
+            <div className="px-5 py-4 border-b border-(--border)">
+              <h3 className="text-base font-semibold">Latest Successful Analyses</h3>
+              <p className="mt-1 text-xs text-(--text-muted)">
+                Recent runs that are ready for deep-dive review.
+              </p>
+            </div>
+            <div className="divide-y divide-(--border)">
+              {succeededJobs.length === 0 ? (
+                <div className="px-5 py-8 text-sm text-(--text-muted)">
+                  No successful uploads yet.
+                </div>
+              ) : (
+                succeededJobs.slice(0, 5).map((job) => (
+                  <div
+                    key={`success-${job.uploadId}`}
+                    className="px-5 py-4 flex items-center justify-between gap-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{job.uploadId}</p>
+                      <p className="mt-1 text-xs text-(--text-secondary) truncate">
+                        Updated {formatTimestamp(job.updatedAt)}
+                      </p>
+                    </div>
+                    <Link
+                      to={`/home/uploads/${job.uploadId}`}
+                      className="inline-flex items-center px-3 py-1.5 text-[11px] tracking-[0.12em] uppercase border border-(--input-focus) text-(--text-primary) hover:border-white/40 shrink-0"
+                    >
+                      Open
+                    </Link>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
         {!isLoading && !error && sortedJobs.length === 0 && (
-          <div className="mt-6 border border-(--border) bg-white/2 rounded-xl px-6 py-14 text-center">
+          <div className="mt-6 border border-(--border) bg-white/2 rounded-none px-6 py-14 text-center">
             <p className="text-sm tracking-[0.12em] uppercase text-(--text-muted)">
               No upload jobs found
             </p>
@@ -238,7 +357,7 @@ export default function UploadsPage() {
         )}
 
         {sortedJobs.length > 0 && (
-          <section className="mt-6 border border-(--border) bg-black/20 backdrop-blur-sm rounded-2xl overflow-hidden">
+          <section className="mt-6 border border-(--border) bg-black/20 backdrop-blur-sm rounded-none overflow-hidden">
             <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-6 py-3 border-b border-(--border) text-[11px] tracking-[0.12em] uppercase text-(--text-muted)">
               <span className="col-span-3">Upload ID</span>
               <span className="col-span-2">Status</span>
@@ -249,6 +368,8 @@ export default function UploadsPage() {
 
             {sortedJobs.map((job) => {
               const hasArtifacts = Boolean(job.planKey || job.graphKey);
+              const isSucceeded =
+                normalizeUploadStatus(job.status) === "SUCCEEDED";
 
               return (
                 <article
@@ -262,9 +383,9 @@ export default function UploadsPage() {
 
                     <div className="col-span-2">
                       <span
-                        className={`inline-flex px-2.5 py-1 text-[11px] tracking-[0.12em] uppercase border rounded-sm ${statusBadgeClass(job.status)}`}
+                        className={`inline-flex px-2.5 py-1 text-[11px] tracking-[0.12em] uppercase border rounded-none ${uploadStatusBadgeClass(job.status)}`}
                       >
-                        {job.status}
+                        {formatUploadStatusLabel(job.status)}
                       </span>
                     </div>
 
@@ -290,9 +411,9 @@ export default function UploadsPage() {
                         {job.uploadId}
                       </p>
                       <span
-                        className={`shrink-0 inline-flex px-2.5 py-1 text-[11px] tracking-[0.12em] uppercase border rounded-sm ${statusBadgeClass(job.status)}`}
+                        className={`shrink-0 inline-flex px-2.5 py-1 text-[11px] tracking-[0.12em] uppercase border rounded-none ${uploadStatusBadgeClass(job.status)}`}
                       >
-                        {job.status}
+                        {formatUploadStatusLabel(job.status)}
                       </span>
                     </div>
 
@@ -318,10 +439,31 @@ export default function UploadsPage() {
                   </div>
 
                   {job.lastError && (
-                    <div className="mt-3 text-xs text-red-200 border border-red-300/30 bg-red-400/10 rounded-sm px-3 py-2 break-all">
+                    <div className="mt-3 text-xs text-red-200 border border-red-300/30 bg-red-400/10 rounded-none px-3 py-2 break-all">
                       Last error: {job.lastError}
                     </div>
                   )}
+
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    {isSucceeded && (
+                      <Link
+                        to={`/home/uploads/${job.uploadId}`}
+                        className="inline-flex items-center px-3 py-1.5 text-[11px] tracking-[0.12em] uppercase border border-(--input-focus) text-(--text-primary) hover:border-white/40"
+                      >
+                        Open Dashboard
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteUpload(job.uploadId)}
+                      disabled={deletingUploadId === job.uploadId}
+                      className="inline-flex items-center px-3 py-1.5 text-[11px] tracking-[0.12em] uppercase border border-red-300/40 text-red-100 hover:border-red-200/70 disabled:opacity-50"
+                    >
+                      {deletingUploadId === job.uploadId
+                        ? "Deleting..."
+                        : "Delete"}
+                    </button>
+                  </div>
                 </article>
               );
             })}
@@ -329,7 +471,7 @@ export default function UploadsPage() {
         )}
 
         {!error && isLoading && (
-          <div className="mt-6 border border-(--border) bg-white/2 rounded-xl px-6 py-10 text-center text-(--text-secondary)">
+          <div className="mt-6 border border-(--border) bg-white/2 rounded-none px-6 py-10 text-center text-(--text-secondary)">
             <div className="inline-flex items-center gap-2 text-sm">
               <Loader2 className="w-4 h-4 animate-spin" />
               Loading upload jobs...

@@ -181,10 +181,10 @@ export default function InventoryPage() {
               </p>
             </div>
             <Link
-              to="/dashboard"
+              to="/home"
               className="inline-flex items-center justify-center px-4 py-2 text-xs uppercase tracking-[0.12em] border border-(--input-focus) hover:border-white/40"
             >
-              Back to Dashboard
+              Back to Home
             </Link>
           </div>
         </section>

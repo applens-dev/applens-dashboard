@@ -45,10 +45,10 @@ export default function SetContextPage() {
         </button>
 
         <Link
-          to="/uploads"
+          to="/home"
           className="inline-flex justify-center px-7 py-3 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40 opacity-90 hover:opacity-100"
         >
-          Go to Uploads
+          Go to Home
         </Link>
       </div>
 

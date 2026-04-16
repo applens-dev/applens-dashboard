@@ -24,9 +24,10 @@ export default function Header({
   const location = useLocation();
 
   const inOnboarding = location.pathname.startsWith("/onboarding");
-  const inDashboard = location.pathname.startsWith("/dashboard");
+  const inHome = location.pathname.startsWith("/home");
   const inUploads = location.pathname.startsWith("/uploads");
-  const inAppFlow = inOnboarding || inDashboard || inUploads;
+  const inDashboard = location.pathname.startsWith("/dashboard");
+  const inAppFlow = inOnboarding || inHome || inUploads || inDashboard;
 
   const brandText =
     title.trim().length > 0 ? `AppLens / ${title.trim()}` : "AppLens";
@@ -139,18 +140,15 @@ export default function Header({
             {!isLoggedIn ? (
               <span className="text-sm font-medium tracking-[0.25em] text-(--text-primary) uppercase opacity-90 hover:opacity-100">
                 {brandText}
-                {inDashboard && !title ? " / Dashboard" : ""}
+                {inHome && !title ? " / Home" : ""}
               </span>
             ) : null}
           </Link>
 
           {isLoggedIn ? (
             <nav className="flex items-center gap-5" aria-label="Primary">
-              <NavLink to="/dashboard" className={appNavLinkClass}>
-                Dashboard
-              </NavLink>
-              <NavLink to="/uploads" className={appNavLinkClass}>
-                Uploads
+              <NavLink to="/home" className={appNavLinkClass}>
+                Home
               </NavLink>
             </nav>
           ) : null}
