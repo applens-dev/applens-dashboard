@@ -8,6 +8,7 @@ import {
 } from "../api/uploads";
 import { useOnboarding } from "../context/OnboardingContext";
 import { CheckSquare, CloudUpload } from "lucide-react";
+import AppButton from "../components/AppButton";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -55,6 +56,7 @@ export default function ImportTerraformPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploadName, setUploadName] = useState("default");
   const [status, setStatus] = useState<
     "idle" | "presigning" | "uploading" | "done"
   >("idle");
@@ -116,6 +118,7 @@ export default function ImportTerraformPage() {
       const presign = await presignTerraformUpload(
         {
           filename: file.name,
+          name: uploadName.trim() || "default",
           contentType,
         },
         accessToken,
@@ -134,13 +137,13 @@ export default function ImportTerraformPage() {
 
       await completeTerraformUpload(
         presign.uploadId,
-        { s3Key: presign.s3Key },
         accessToken,
       );
 
       setTerraformUpload({
-        key: presign.s3Key,
+        uploadId: presign.uploadId,
         filename: file.name,
+        name: uploadName.trim() || "default",
       });
 
       setStatus("done");
@@ -152,10 +155,11 @@ export default function ImportTerraformPage() {
   }
 
   function handleSkip() {
-    if (!state.terraformUploadKey) {
+    if (!state.terraformUploadId) {
       setTerraformUpload({
-        key: "skipped",
+        uploadId: "skipped",
         filename: "skipped",
+        name: "skipped",
       });
     }
     navigate("/onboarding/connect-aws");
@@ -177,13 +181,27 @@ export default function ImportTerraformPage() {
         </p>
 
         <div className="mb-6 flex justify-end">
-          <button
-            type="button"
-            onClick={handleSkip}
-            className="inline-flex justify-center px-7 py-3 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40 opacity-90 hover:opacity-100"
-          >
+          <AppButton onClick={handleSkip} variant="outline">
             Skip
-          </button>
+          </AppButton>
+        </div>
+
+        <div className="mb-6">
+          <label
+            htmlFor="terraform-upload-name"
+            className="block text-[11px] font-medium tracking-[0.12em] uppercase text-(--text-muted) mb-2"
+          >
+            Terraform Config Name
+          </label>
+          <input
+            id="terraform-upload-name"
+            type="text"
+            value={uploadName}
+            disabled={isBusy}
+            onChange={(e) => setUploadName(e.target.value)}
+            className="w-full border border-(--border) bg-white/2 px-4 py-3 text-sm text-(--text-primary) placeholder:text-(--text-muted) focus:outline-none focus:border-(--input-focus) disabled:opacity-60"
+            placeholder="default"
+          />
         </div>
 
         <div
@@ -228,20 +246,18 @@ export default function ImportTerraformPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-              <button
-                type="button"
+              <AppButton
                 disabled={isBusy}
                 onClick={() => fileInputRef.current?.click()}
-                className="px-7 py-3 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40 disabled:opacity-50"
+                variant="outline"
               >
                 Browse
-              </button>
+              </AppButton>
 
-              <button
-                type="button"
+              <AppButton
                 disabled={isBusy || !file}
                 onClick={startUpload}
-                className="px-7 py-3 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100 disabled:opacity-50"
+                variant="primary"
               >
                 {status === "presigning"
                   ? "Preparing..."
@@ -250,7 +266,7 @@ export default function ImportTerraformPage() {
                     : status === "done"
                       ? "Uploaded"
                       : "Upload"}
-              </button>
+              </AppButton>
             </div>
 
             <input
@@ -268,15 +284,14 @@ export default function ImportTerraformPage() {
 
         {error && <p className="mt-6 text-sm text-red-300">{error}</p>}
 
-        {status === "done" && state.terraformUploadKey && (
+        {status === "done" && state.terraformUploadId && (
           <div className="mt-8 border border-(--border) bg-white/2 p-5">
             <p className="text-sm text-(--text-primary) mb-2 flex gap-2 items-center">
               <CheckSquare className="w-4 h-4 text-green-500" /> Uploaded:
               <span className="font-medium">{state.terraformFilename}</span>
             </p>
-
-            <p className="text-xs text-(--text-muted) break-all">
-              S3 key: {state.terraformUploadKey}
+            <p className="text-xs text-(--text-secondary)">
+              Name: <span className="font-medium">{state.terraformUploadName}</span>
             </p>
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3">

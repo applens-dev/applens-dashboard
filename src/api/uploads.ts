@@ -1,22 +1,19 @@
 export type PresignUploadRequest = {
   filename: string;
+  name?: string;
   contentType?: string;
 };
 
 export type PresignUploadResponse = {
   uploadId: string;
   url: string;
-  s3Key: string;
 };
 
 export type UploadJob = {
   userId: string;
   uploadId: string;
+  name: string;
   status: string;
-  bucket: string;
-  sourceKey: string;
-  planKey: string | null;
-  graphKey: string | null;
   buildId: string | null;
   lastError: string | null;
   createdAt: number;
@@ -25,18 +22,14 @@ export type UploadJob = {
 
 export type UploadStatusResponse = {
   uploadId: string;
+  name: string;
   status: string;
-  bucket: string;
-  sourceKey: string;
-  planKey: string | null;
-  graphKey: string | null;
   buildId: string | null;
   lastError: string | null;
 };
 
 export type UploadArtifactInfo = {
   name: string;
-  key: string;
   exists: boolean;
   required: boolean;
 };
@@ -44,7 +37,6 @@ export type UploadArtifactInfo = {
 export type UploadArtifactsResponse = {
   uploadId: string;
   status: string;
-  bucket: string;
   artifacts: UploadArtifactInfo[];
   allRequiredReady: boolean;
   graphReady: boolean;
@@ -52,7 +44,6 @@ export type UploadArtifactsResponse = {
 
 export type ArtifactPresignResponse = {
   artifactName: string;
-  key: string;
   url: string;
   expiresInSeconds: number;
 };
@@ -94,13 +85,11 @@ export async function presignTerraformUpload(
 
 export async function completeTerraformUpload(
   uploadId: string,
-  payload: { s3Key: string },
   accessToken: string,
 ): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/uploads/${uploadId}/complete`, {
     method: "POST",
     headers: buildHeaders(accessToken),
-    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {

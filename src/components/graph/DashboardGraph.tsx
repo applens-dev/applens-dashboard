@@ -19,6 +19,7 @@ import type {
   GraphStrideFlags,
   ThreatItem,
 } from "../../types/dashboardArtifacts";
+import AppButton from "../AppButton";
 
 const NODE_WIDTH = 172;
 const NODE_HEIGHT = 44;
@@ -57,11 +58,29 @@ function normalizeStrideFlags(
 
 type DashboardGraphProps = {
   graphData: DashboardGraphData;
-  hoveredContext?: {
-    kind: "node" | "edge";
-    id: string;
-  } | null;
+  hoveredContext?:
+    | {
+      kind: "node" | "edge";
+      id: string;
+    }
+    | {
+      kind: "node" | "edge";
+      id: string;
+    }[]
+    | null;
 };
+
+type GraphContext = {
+  kind: "node" | "edge";
+  id: string;
+};
+
+function toContextList(
+  context: GraphContext | GraphContext[] | null | undefined,
+): GraphContext[] {
+  if (!context) return [];
+  return Array.isArray(context) ? context : [context];
+}
 
 function getLayoutedNodes(nodes: Node[], edges: Edge[]) {
   const graph = new dagre.graphlib.Graph();
@@ -223,10 +242,16 @@ export default function DashboardGraph({
   const renderedNodes = useMemo(
     () =>
       flowNodes.map((node) => {
-        const effectiveContext = selectedContext ?? hoveredContext;
-        const isSelected =
-          effectiveContext?.kind === "node" && effectiveContext.id === node.id;
-        const isDimmed = effectiveContext?.kind === "node" && !isSelected;
+        const effectiveContexts = selectedContext
+          ? [selectedContext]
+          : toContextList(hoveredContext);
+        const hasNodeFocus = effectiveContexts.some(
+          (context) => context.kind === "node",
+        );
+        const isSelected = effectiveContexts.some(
+          (context) => context.kind === "node" && context.id === node.id,
+        );
+        const isDimmed = hasNodeFocus && !isSelected;
         return {
           ...node,
           className: [
@@ -244,14 +269,20 @@ export default function DashboardGraph({
   const renderedEdges = useMemo(
     () =>
       flowEdges.map((edge) => {
-        const effectiveContext = selectedContext ?? hoveredContext;
+        const effectiveContexts = selectedContext
+          ? [selectedContext]
+          : toContextList(hoveredContext);
         const boundaryThreats =
           (edge.data?.boundaryThreats as ThreatItem[] | undefined) ?? [];
         const hasBoundaryThreats =
           Boolean(edge.data?.trustBoundary) && boundaryThreats.length > 0;
-        const isSelected =
-          effectiveContext?.kind === "edge" && effectiveContext.id === edge.id;
-        const isDimmed = effectiveContext?.kind === "edge" && !isSelected;
+        const hasEdgeFocus = effectiveContexts.some(
+          (context) => context.kind === "edge",
+        );
+        const isSelected = effectiveContexts.some(
+          (context) => context.kind === "edge" && context.id === edge.id,
+        );
+        const isDimmed = hasEdgeFocus && !isSelected;
         return {
           ...edge,
           className: [
@@ -384,20 +415,22 @@ export default function DashboardGraph({
           Architecture Graph
         </h4>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <AppButton
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="px-2.5 py-1.5 rounded-none border cursor-pointer border-white/20 bg-white/5 text-[11px] tracking-[0.08em] uppercase text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+            variant="panel"
+            size="panel"
+            className="rounded-none"
           >
             {expanded ? "Close Expanded" : "Expand"}
-          </button>
-          <button
-            type="button"
+          </AppButton>
+          <AppButton
             onClick={() => setShowMetadata((prev) => !prev)}
-            className="px-2.5 py-1.5 rounded-none border cursor-pointer border-white/20 bg-white/5 text-[11px] tracking-[0.08em] uppercase text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+            variant="panel"
+            size="panel"
+            className="rounded-none"
           >
             {showMetadata ? "Hide" : "Show"} Metadata
-          </button>
+          </AppButton>
         </div>
       </div>
 
@@ -465,7 +498,16 @@ export default function DashboardGraph({
       )}
 
       {showMetadata && (
-        <aside className="absolute top-14 left-3 z-10 w-[320px] max-w-[calc(100%-24px)] max-h-[calc(100%-68px)] overflow-auto rounded-none border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3">
+        <aside
+          className="absolute top-14 left-3 z-20 w-[320px] max-w-[calc(100%-24px)] max-h-[calc(100%-68px)] overflow-auto rounded-none border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3"
+          onWheel={(event) => {
+            const panel = event.currentTarget;
+            panel.scrollTop += event.deltaY;
+            panel.scrollLeft += event.deltaX;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
           <div className="flex items-center justify-between gap-3">
             <h4 className="text-xs tracking-[0.14em] uppercase text-white/70 font-semibold">
               Graph Intelligence
@@ -573,7 +615,9 @@ export default function DashboardGraph({
       )}
 
       {expanded && (
-        <aside className="absolute bottom-3 left-3 z-10 rounded-none border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3">
+        <aside
+          className={`absolute bottom-3 left-3 z-10 rounded-none border border-white/15 bg-[#111318]/92 backdrop-blur-sm shadow-lg p-3 transition-opacity ${showMetadata ? "opacity-35" : "opacity-100"}`}
+        >
           <h4 className="text-[10px] tracking-[0.14em] uppercase text-white/70 font-semibold">
             Legend
           </h4>

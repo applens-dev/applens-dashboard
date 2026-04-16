@@ -17,16 +17,19 @@ export function OnboardingProvider({
     return {
       state,
       setTerraformUpload: ({
-        key,
+        uploadId,
         filename,
+        name,
       }: {
-        key: string;
+        uploadId: string;
         filename: string;
+        name: string;
       }) =>
         setState((s) => ({
           ...s,
-          terraformUploadKey: key,
+          terraformUploadId: uploadId,
           terraformFilename: filename,
+          terraformUploadName: name,
         })),
       setAwsConnected: (v: boolean) =>
         setState((s) => ({ ...s, awsConnected: v })),

@@ -1,19 +1,15 @@
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import DashboardGraph from "../components/graph/DashboardGraph";
 import {
   fetchPresignedJson,
-  deleteUpload,
-  getCurrentUser,
   getUpload,
   getUploadArtifacts,
   getUploadGraph,
-  getUploads,
   presignUploadArtifact,
-  type UploadJob,
 } from "../api/uploads";
 import {
   mergeGraphWithStride,
@@ -30,17 +26,36 @@ import {
 
 type ThreatLike = {
   title?: string;
+  description?: string;
+  stride?: string;
+  category?: string;
 };
 
 type ThreatListItem = {
   key: string;
   title: string;
   source: string;
+  description: string;
+  strideViolations: string[];
   graphContext?: {
     kind: "node" | "edge";
     id: string;
   };
 };
+
+function formatStrideLabel(value: string): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const withSpaces = trimmed
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ");
+  return withSpaces
+    .split(" ")
+    .filter(Boolean)
+    .map((segment) => segment[0].toUpperCase() + segment.slice(1))
+    .join(" ");
+}
 
 function isDashboardGraphData(value: unknown): value is DashboardGraphData {
   if (!value || typeof value !== "object") return false;
@@ -58,44 +73,60 @@ function ensureDashboardGraphData(value: unknown): DashboardGraphData {
 
 function listThreatItems(graphData: DashboardGraphData): ThreatListItem[] {
   const nodeThreats = (graphData.nodes ?? []).flatMap((node: DashboardGraphNode) =>
-    (node.threats ?? node.data?.threats ?? []).map((threat: ThreatLike) => ({
-      key: `${node.id}-${threat.title ?? "threat"}`,
-      title: threat.title ?? "Untitled threat",
-      source: node.data?.shortType ?? node.data?.label ?? node.id,
-      graphContext: { kind: "node" as const, id: node.id },
-    })),
+    (node.threats ?? node.data?.threats ?? []).map((threat: ThreatLike) => {
+      const threatStrideFlags = [threat.stride, threat.category]
+        .filter((value): value is string => Boolean(value))
+        .map(formatStrideLabel);
+      const strideViolations = Array.from(new Set(threatStrideFlags));
+
+      return {
+        key: `${node.id}-${threat.title ?? "threat"}`,
+        title: threat.title ?? "Untitled threat",
+        source: node.data?.shortType ?? node.data?.label ?? node.id,
+        description: threat.description?.trim() || "No description provided.",
+        strideViolations,
+        graphContext: { kind: "node" as const, id: node.id },
+      };
+    }),
   );
 
   const boundaryThreats = (graphData.edges ?? []).flatMap(
     (edge: DashboardGraphEdge) =>
-      (edge.data?.boundaryThreats ?? []).map((threat: ThreatLike) => ({
-        key: `${edge.id}-${threat.title ?? "boundary-threat"}`,
-        title: threat.title ?? "Untitled boundary threat",
-        source: `${edge.source} -> ${edge.target}`,
-        graphContext: { kind: "edge" as const, id: edge.id },
-      })),
+      (edge.data?.boundaryThreats ?? []).map((threat: ThreatLike) => {
+        const strideViolations = [threat.stride, threat.category]
+          .filter((value): value is string => Boolean(value))
+          .map(formatStrideLabel);
+
+        return {
+          key: `${edge.id}-${threat.title ?? "boundary-threat"}`,
+          title: threat.title ?? "Untitled boundary threat",
+          source: `${edge.source} -> ${edge.target}`,
+          description: threat.description?.trim() || "No description provided.",
+          strideViolations,
+          graphContext: { kind: "edge" as const, id: edge.id },
+        };
+      }),
   );
 
   return [...nodeThreats, ...boundaryThreats];
 }
 
 export default function DashboardPage() {
-  const { user, getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently } = useAuth0();
   const { uploadId } = useParams<{ uploadId: string }>();
-  const navigate = useNavigate();
 
-  const [jobs, setJobs] = useState<UploadJob[]>([]);
   const [graphData, setGraphData] = useState<DashboardGraphData | null>(null);
+  const [uploadName, setUploadName] = useState<string>("default");
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [animatedRiskScore, setAnimatedRiskScore] = useState(0);
   const [hoveredThreatContext, setHoveredThreatContext] = useState<{
     kind: "node" | "edge";
     id: string;
   } | null>(null);
+  const [selectedThreatKey, setSelectedThreatKey] = useState<string | null>(null);
+  const vulnerabilitiesCardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!uploadId) {
@@ -115,20 +146,11 @@ export default function DashboardPage() {
           },
         });
 
-        const [currentUser, uploadJobs, upload] = await Promise.all([
-          getCurrentUser(accessToken).catch(() => null),
-          getUploads(accessToken).catch(() => []),
-          getUpload(uploadId, accessToken),
-        ]);
-
-        const userId = currentUser?.id ?? currentUser?.userId ?? user?.sub;
-        const visibleJobs = userId
-          ? uploadJobs.filter((job) => job.userId === userId)
-          : uploadJobs;
-        setJobs(visibleJobs);
+        const upload = await getUpload(uploadId, accessToken);
 
         const normalizedStatus = normalizeUploadStatus(upload.status);
         setUploadStatus(normalizedStatus);
+        setUploadName(upload.name?.trim() ? upload.name : "default");
 
         if (normalizedStatus !== "SUCCEEDED") {
           setGraphData(null);
@@ -175,22 +197,37 @@ export default function DashboardPage() {
     };
 
     void load();
-  }, [getAccessTokenSilently, uploadId, user?.sub]);
-
-  const displayName = (() => {
-    if (user?.given_name?.trim()) return user.given_name.trim();
-    if (user?.name?.trim()) return user.name.trim();
-    if (user?.email?.trim()) return user.email.trim();
-    return "user";
-  })();
+  }, [getAccessTokenSilently, uploadId]);
 
   const threatItems = useMemo(
     () => (graphData ? listThreatItems(graphData) : []),
     [graphData],
   );
+  const selectedThreatItem = useMemo(
+    () => threatItems.find((threat) => threat.key === selectedThreatKey) ?? null,
+    [selectedThreatKey, threatItems],
+  );
+  const highlightedThreatContexts = useMemo(() => {
+    const unique = new Map<string, { kind: "node" | "edge"; id: string }>();
+    if (selectedThreatItem?.graphContext) {
+      unique.set(
+        `${selectedThreatItem.graphContext.kind}:${selectedThreatItem.graphContext.id}`,
+        selectedThreatItem.graphContext,
+      );
+    }
+    if (hoveredThreatContext) {
+      unique.set(
+        `${hoveredThreatContext.kind}:${hoveredThreatContext.id}`,
+        hoveredThreatContext,
+      );
+    }
+    return Array.from(unique.values());
+  }, [hoveredThreatContext, selectedThreatItem]);
 
   const vulnerabilityCount = threatItems.length;
-  const totalJobs = jobs.length;
+  const totalResources = graphData?.nodes?.length ?? 0;
+  const riskRationale =
+    graphData?.metadata?.riskRationale?.trim() || "Pending STRIDE analysis.";
   const riskScore =
     graphData?.metadata?.overallRiskScore !== undefined &&
       graphData?.metadata?.overallRiskScore !== null
@@ -210,7 +247,6 @@ export default function DashboardPage() {
   const displayedRiskScore = hasNumericRiskScore
     ? String(Math.round(animatedRiskScore))
     : riskScore;
-  const recentJobs = useMemo(() => jobs.slice(0, 4), [jobs]);
 
   const showBlockedState =
     !isLoading &&
@@ -247,34 +283,17 @@ export default function DashboardPage() {
     return () => window.cancelAnimationFrame(frame);
   }, [graphReady, hasNumericRiskScore, normalizedRiskScore, uploadId]);
 
-  const handleDeleteUpload = async () => {
-    if (!uploadId) return;
+  useEffect(() => {
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (vulnerabilitiesCardRef.current?.contains(target)) return;
+      setSelectedThreatKey(null);
+    };
 
-    const confirmed = window.confirm(
-      "Delete this upload and all of its S3 artifacts?",
-    );
-    if (!confirmed) return;
-
-    try {
-      setIsDeleting(true);
-      setDeleteError(null);
-
-      const accessToken = await getAccessTokenSilently({
-        authorizationParams: {
-          audience: import.meta.env.VITE_AUTH0_AUDIENCE,
-        },
-      });
-
-      await deleteUpload(uploadId, accessToken);
-      navigate("/home", { replace: true });
-    } catch (error: unknown) {
-      setDeleteError(
-        error instanceof Error ? error.message : "Failed to delete upload.",
-      );
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
 
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary) relative overflow-hidden">
@@ -294,27 +313,22 @@ export default function DashboardPage() {
 
       <div className="relative z-10 px-6 sm:px-10 lg:px-14 xl:px-20 pt-12 pb-20">
         <section className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6 items-stretch">
-          <div className="pt-4">
+          <div className="pt-4 dashboard-fade-in-left">
             <p className="text-xs tracking-[0.18em] uppercase text-(--text-muted)">
-              Overview
+              Upload Dashboard
             </p>
             <h2 className="mt-3 text-3xl sm:text-4xl font-semibold leading-tight">
-              Good morning, <span className="opacity-90">{displayName}</span>.
+              <span className="font-mono text-2xl sm:text-3xl">{uploadName}</span> Overview
             </h2>
             <p className="mt-3 text-sm text-(--text-secondary) font-light max-w-3xl">
-              Upload <span className="font-semibold">{uploadId}</span> currently has{" "}
+              Upload <span className="font-semibold">{uploadName}</span> currently has{" "}
               <span className="font-bold">
                 {vulnerabilityCount} {vulnerabilityCount !== 1 ? "vulnerabilities" : "vulnerability"}
               </span>{" "}
               identified in the architecture analysis.
             </p>
           </div>
-          <div className="border h-16 border-(--border) bg-black/20 backdrop-blur-sm rounded-none p-6 sm:p-8 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs tracking-[0.18em] uppercase text-(--text-muted)">
-                Upload Status
-              </p>
-            </div>
+          <div className="pt-4 flex items-start lg:justify-end dashboard-fade-in-top">
             <span
               className={`shrink-0 inline-flex px-3 py-1.5 text-[11px] tracking-[0.12em] uppercase border ${uploadStatusBadgeClass(uploadStatus ?? "UNKNOWN")}`}
             >
@@ -326,12 +340,6 @@ export default function DashboardPage() {
         {loadError && (
           <section className="mt-6 border border-red-300/30 bg-red-400/10 rounded-none px-5 py-4 text-sm text-red-100">
             {loadError}
-          </section>
-        )}
-
-        {deleteError && (
-          <section className="mt-6 border border-red-300/30 bg-red-400/10 rounded-none px-5 py-4 text-sm text-red-100">
-            {deleteError}
           </section>
         )}
 
@@ -375,15 +383,15 @@ export default function DashboardPage() {
                 </div>
                 <div className="px-6 py-6 sm:px-7">
                   <div className="text-[11px] tracking-[0.14em] uppercase text-(--text-muted)">
-                    Total Jobs
+                    Total Resources
                   </div>
-                  <div className="mt-2 text-2xl font-semibold">{totalJobs}</div>
+                  <div className="mt-2 text-2xl font-semibold">{totalResources}</div>
                 </div>
               </div>
             </section>
 
-            <section className="mt-6 grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6">
-              <aside className="space-y-6">
+            <section className="relative mt-6 grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6">
+              <aside className="relative z-30 space-y-6">
                 <div className="border border-(--border) bg-black/25 backdrop-blur-sm rounded-none p-6 flex flex-col items-center">
                   <div className="w-72 h-72 rounded-full border border-(--border) flex items-center justify-center bg-white/2 relative">
                     <svg
@@ -437,7 +445,19 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="border border-(--border) bg-black/25 backdrop-blur-sm rounded-none overflow-hidden">
+                <div className="border border-(--border) bg-black/25 backdrop-blur-sm rounded-none px-5 py-4">
+                  <h3 className="text-[11px] tracking-[0.12em] uppercase text-(--text-muted)">
+                    Risk Rationale
+                  </h3>
+                  <p className="mt-2 text-[13px] leading-6 text-(--text-secondary)">
+                    {riskRationale}
+                  </p>
+                </div>
+
+                <div
+                  ref={vulnerabilitiesCardRef}
+                  className="relative border border-(--border) bg-black/25 backdrop-blur-sm rounded-none overflow-visible"
+                >
                   <div className="px-5 py-4 border-b border-(--border)">
                     <h3 className="text-base font-semibold">
                       Active Vulnerabilities
@@ -451,11 +471,26 @@ export default function DashboardPage() {
                     threatItems.slice(0, 8).map((threat, idx) => (
                       <div
                         key={`${threat.key}-${idx}`}
-                        className="px-5 py-3 border-b border-(--border) last:border-b-0 flex items-center justify-between gap-3 transition-colors hover:bg-white/6 cursor-pointer"
+                        className={`relative px-5 py-3 border-b border-(--border) last:border-b-0 flex items-center justify-between gap-3 transition-colors cursor-pointer ${selectedThreatKey === threat.key ? "bg-white/10" : "hover:bg-white/6"}`}
+                        role="button"
+                        tabIndex={0}
                         onMouseEnter={() =>
                           setHoveredThreatContext(threat.graphContext ?? null)
                         }
                         onMouseLeave={() => setHoveredThreatContext(null)}
+                        onClick={() =>
+                          setSelectedThreatKey((current) =>
+                            current === threat.key ? null : threat.key,
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedThreatKey((current) =>
+                              current === threat.key ? null : threat.key,
+                            );
+                          }
+                        }}
                       >
                         <div className="min-w-0 flex items-center gap-2.5">
                           <span className="text-[11px] text-(--text-muted) shrink-0 tabular-nums">
@@ -468,13 +503,47 @@ export default function DashboardPage() {
                         <span className="shrink-0 max-w-[130px] truncate px-2 py-1 border border-white/10 bg-white/5 text-[10px] tracking-[0.08em] uppercase text-(--text-secondary)">
                           {threat.source}
                         </span>
+                        {selectedThreatItem && selectedThreatItem.key === threat.key && (
+                          <div
+                            className="dashboard-expand-panel absolute left-full top-1/2 ml-3 -translate-y-1/2 w-72 border border-white/20 bg-[#0b1117] shadow-2xl p-3 z-50 cursor-default"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div className="text-[11px] tracking-[0.08em] uppercase text-(--text-muted) mb-1">
+                              Vulnerability
+                            </div>
+                            <p className="text-[13px] text-white/95 leading-5 mb-3">
+                              {selectedThreatItem.title}
+                            </p>
+                            <div className="text-[11px] tracking-[0.08em] uppercase text-(--text-muted) mb-1">
+                              STRIDE Violated
+                            </div>
+                            <div className="text-[12px] text-white/90 mb-3 leading-5">
+                              {selectedThreatItem.strideViolations.length > 0
+                                ? selectedThreatItem.strideViolations.join(", ")
+                                : "Not specified"}
+                            </div>
+                            <div className="text-[11px] tracking-[0.08em] uppercase text-(--text-muted) mb-1">
+                              Full Description
+                            </div>
+                            <p className="text-[12px] text-white/85 leading-5 whitespace-normal">
+                              {selectedThreatItem.description}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
                 </div>
               </aside>
 
-              <div className="space-y-6">
+              <div
+                className="relative z-10 space-y-6"
+                onMouseDown={() => {
+                  setSelectedThreatKey(null);
+                  setHoveredThreatContext(null);
+                }}
+              >
                 <div className="border border-(--border) bg-black/25 backdrop-blur-sm rounded-none p-4 sm:p-5">
                   <div className="mb-3 px-2 flex items-start justify-between gap-3">
                     <div>
@@ -497,43 +566,10 @@ export default function DashboardPage() {
                   <DashboardGraph
                     key={uploadId}
                     graphData={graphData}
-                    hoveredContext={hoveredThreatContext}
+                    hoveredContext={highlightedThreatContexts}
                   />
                 </div>
 
-                <div className="border border-(--border) bg-black/25 backdrop-blur-sm rounded-none overflow-hidden">
-                  <div className="px-5 py-4 border-b border-(--border)">
-                    <h3 className="text-base font-semibold">
-                      Recent Upload Activity
-                    </h3>
-                  </div>
-                  {recentJobs.length === 0 ? (
-                    <div className="px-5 py-8 text-(--text-muted) text-sm">
-                      No upload activity yet.
-                    </div>
-                  ) : (
-                    recentJobs.map((job) => (
-                      <div
-                        key={job.uploadId}
-                        className="px-5 py-4 border-b border-(--border) last:border-b-0 flex items-center justify-between gap-4"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {job.uploadId}
-                          </p>
-                          <p className="text-xs text-(--text-muted) mt-1">
-                            User: {job.userId}
-                          </p>
-                        </div>
-                        <span
-                          className={`inline-flex px-2.5 py-1 text-[11px] tracking-[0.12em] uppercase border rounded-sm shrink-0 ${uploadStatusBadgeClass(job.status)}`}
-                        >
-                          {formatUploadStatusLabel(job.status)}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
             </section>
           </>

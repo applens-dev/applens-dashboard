@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useOnboarding } from "../context/OnboardingContext";
 import { CheckSquare, FileText } from "lucide-react";
+import AppButton from "../components/AppButton";
 
 export default function SetContextPage() {
   const { state, setContextAssigned } = useOnboarding();
@@ -52,14 +53,13 @@ export default function SetContextPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              type="button"
+            <AppButton
               onClick={() => setContextAssigned(true)}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100"
+              variant="primary"
             >
               <FileText className="w-4 h-4" />
               Mark Context Assigned
-            </button>
+            </AppButton>
 
             <Link
               to="/home"

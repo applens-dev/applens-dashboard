@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useOnboarding } from "../context/OnboardingContext";
 import { CheckSquare, AlertCircle, Copy, Download, Loader } from "lucide-react";
 import { getMe, verifyRole, type UserProfile } from "../api/user";
+import AppButton from "../components/AppButton";
 
 const APP_LENS_BUCKET_ARN = "arn:aws:s3:::applens-dev-live-inventory-us-east-2";
 
@@ -137,11 +138,13 @@ export default function ConnectAwsPage() {
                 <code className="text-sm text-(--text-primary) break-all">
                   {userProfile.appLensAccountId}
                 </code>
-                <button
+                <AppButton
                   onClick={() =>
                     handleCopyToClipboard(userProfile.appLensAccountId, "accountId")
                   }
-                  className="inline-flex items-center justify-center w-8 h-8 border border-(--input-focus) text-(--text-primary) hover:border-white/40"
+                  size="icon"
+                  variant="outline"
+                  className="opacity-100"
                   title="Copy AppLens account ID"
                 >
                   {copiedField === "accountId" ? (
@@ -149,7 +152,7 @@ export default function ConnectAwsPage() {
                   ) : (
                     <Copy className="w-4 h-4" />
                   )}
-                </button>
+                </AppButton>
               </div>
             </div>
 
@@ -161,9 +164,11 @@ export default function ConnectAwsPage() {
                 <code className="text-sm text-(--text-primary) break-all">
                   {APP_LENS_BUCKET_ARN}
                 </code>
-                <button
+                <AppButton
                   onClick={() => handleCopyToClipboard(APP_LENS_BUCKET_ARN, "bucketArn")}
-                  className="inline-flex items-center justify-center w-8 h-8 border border-(--input-focus) text-(--text-primary) hover:border-white/40"
+                  size="icon"
+                  variant="outline"
+                  className="opacity-100"
                   title="Copy AppLens S3 bucket ARN"
                 >
                   {copiedField === "bucketArn" ? (
@@ -171,7 +176,7 @@ export default function ConnectAwsPage() {
                   ) : (
                     <Copy className="w-4 h-4" />
                   )}
-                </button>
+                </AppButton>
               </div>
             </div>
 
@@ -186,9 +191,11 @@ export default function ConnectAwsPage() {
                 <code className="text-sm text-(--text-primary) break-all">
                   {userProfile.externalId}
                 </code>
-                <button
+                <AppButton
                   onClick={() => handleCopyToClipboard(userProfile.externalId, "externalId")}
-                  className="inline-flex items-center justify-center w-8 h-8 border border-(--input-focus) text-(--text-primary) hover:border-white/40"
+                  size="icon"
+                  variant="outline"
+                  className="opacity-100"
                   title="Copy external ID"
                 >
                   {copiedField === "externalId" ? (
@@ -196,7 +203,7 @@ export default function ConnectAwsPage() {
                   ) : (
                     <Copy className="w-4 h-4" />
                   )}
-                </button>
+                </AppButton>
               </div>
               <p className="text-xs text-amber-200 mt-3">
                 Keep this value private. It is used to verify trust between your AWS
@@ -206,13 +213,13 @@ export default function ConnectAwsPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <button
+            <AppButton
               onClick={handleDownloadTemplate}
-              className="inline-flex items-center gap-2 px-7 py-3 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100"
+              variant="primary"
             >
               <Download className="w-4 h-4" />
               Download Template
-            </button>
+            </AppButton>
             <p className="text-xs text-(--text-secondary) font-light">
               Upload `customer-scanning-role.yaml` in CloudFormation and complete the
               stack creation.
@@ -259,14 +266,14 @@ export default function ConnectAwsPage() {
               </div>
             )}
 
-            <button
+            <AppButton
               onClick={handleVerifyRole}
               disabled={verifying || !roleArnInput.trim()}
-              className="inline-flex items-center gap-2 px-7 py-3 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="primary"
             >
               {verifying && <Loader className="w-4 h-4 animate-spin" />}
               {verifying ? "Verifying..." : "Verify Connection"}
-            </button>
+            </AppButton>
           </div>
         ) : (
           <div className="mb-8 border border-green-500/30 bg-green-500/8 p-5 sm:p-6">

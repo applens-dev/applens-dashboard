@@ -1,19 +1,40 @@
 import { useAuth0 } from "@auth0/auth0-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
+  CloudUpload,
   Loader2,
   RefreshCw,
 } from "lucide-react";
 import Header from "../components/Header";
-import { deleteUpload, getUploads, type UploadJob } from "../api/uploads";
+import {
+  completeTerraformUpload,
+  deleteUpload,
+  getUploads,
+  presignTerraformUpload,
+  uploadFileToPresignedUrl,
+  type UploadJob,
+} from "../api/uploads";
+import { getMe } from "../api/user";
 import {
   formatUploadStatusLabel,
   isUploadInProgress,
   normalizeUploadStatus,
   uploadStatusBadgeClass,
 } from "../types/uploadStatus";
+import AppButton from "../components/AppButton";
+
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const SUPPORTED_FILE_TYPES: Record<string, string> = {
+  ".tf": "text/plain",
+  ".tfvars": "text/plain",
+  ".zip": "application/zip",
+  ".tar": "application/x-tar",
+  ".tgz": "application/gzip",
+  ".tar.gz": "application/gzip",
+};
 
 function formatTimestamp(ms: number): string {
   if (!Number.isFinite(ms)) return "-";
@@ -23,20 +44,61 @@ function formatTimestamp(ms: number): string {
   }).format(new Date(ms));
 }
 
-function clipMiddle(value: string, max = 40): string {
-  if (value.length <= max) return value;
-  const head = value.slice(0, Math.ceil(max * 0.55));
-  const tail = value.slice(-Math.floor(max * 0.35));
-  return `${head}...${tail}`;
+function displayUploadName(name: string | null | undefined): string {
+  if (!name || !name.trim()) {
+    return "default";
+  }
+  return name;
+}
+
+function prettyBytes(bytes: number) {
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  let n = bytes;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
+  return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function getSupportedContentType(filename: string): string | null {
+  const name = filename.toLowerCase();
+  const suffixes = Object.keys(SUPPORTED_FILE_TYPES).sort(
+    (a, b) => b.length - a.length,
+  );
+
+  const matchedSuffix = suffixes.find((suffix) => name.endsWith(suffix));
+  return matchedSuffix ? SUPPORTED_FILE_TYPES[matchedSuffix] : null;
+}
+
+function isTerraformLikeFile(file: File) {
+  return getSupportedContentType(file.name) !== null;
 }
 
 export default function HomePage() {
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, isAuthenticated, loginWithRedirect } =
+    useAuth0();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [jobs, setJobs] = useState<UploadJob[]>([]);
+  const [isNewUploadDialogOpen, setIsNewUploadDialogOpen] = useState(false);
+  const [dialogUploadName, setDialogUploadName] = useState("");
+  const [dialogUploadNameInteracted, setDialogUploadNameInteracted] = useState(false);
+  const [dialogFile, setDialogFile] = useState<File | null>(null);
+  const [dialogIsDragging, setDialogIsDragging] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [dialogProgress, setDialogProgress] = useState<number>(0);
+  const [dialogStatus, setDialogStatus] = useState<
+    "idle" | "presigning" | "uploading" | "done"
+  >("idle");
+  const [isUploadSuccessDialogOpen, setIsUploadSuccessDialogOpen] = useState(false);
+  const [successUploadName, setSuccessUploadName] = useState("");
+  const [deleteDialogUpload, setDeleteDialogUpload] = useState<UploadJob | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingUploadId, setDeletingUploadId] = useState<string | null>(null);
   const [animatePipelineHealth, setAnimatePipelineHealth] = useState(false);
+  const [awsConnected, setAwsConnected] = useState<boolean | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -49,8 +111,16 @@ export default function HomePage() {
         },
       });
 
-      const data = await getUploads(accessToken);
+      const [data, profile] = await Promise.all([
+        getUploads(accessToken),
+        getMe(accessToken).catch(() => null),
+      ]);
       setJobs(data);
+      if (profile) {
+        setAwsConnected(Boolean(profile.awsConnected));
+      } else {
+        setAwsConnected(null);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load uploads.");
     } finally {
@@ -60,11 +130,6 @@ export default function HomePage() {
 
   const handleDeleteUpload = useCallback(
     async (uploadId: string) => {
-      const confirmed = window.confirm(
-        "Delete this upload and all of its S3 artifacts?",
-      );
-      if (!confirmed) return;
-
       try {
         setDeletingUploadId(uploadId);
         setError(null);
@@ -77,6 +142,9 @@ export default function HomePage() {
 
         await deleteUpload(uploadId, accessToken);
         setJobs((prev) => prev.filter((job) => job.uploadId !== uploadId));
+        setDeleteDialogUpload((prev) =>
+          prev?.uploadId === uploadId ? null : prev,
+        );
       } catch (e: unknown) {
         setError(
           e instanceof Error
@@ -89,6 +157,11 @@ export default function HomePage() {
     },
     [getAccessTokenSilently],
   );
+
+  const closeDeleteDialog = useCallback(() => {
+    if (deletingUploadId) return;
+    setDeleteDialogUpload(null);
+  }, [deletingUploadId]);
 
   useEffect(() => {
     void loadJobs();
@@ -150,6 +223,169 @@ export default function HomePage() {
     [sortedJobs],
   );
 
+  const awsStatusLabel =
+    awsConnected === null
+      ? "AWS status unavailable"
+      : awsConnected
+        ? "AWS connected"
+        : "AWS not connected";
+
+  const awsStatusClass =
+    awsConnected === null
+      ? "text-gray-200"
+      : awsConnected
+        ? "text-green-200"
+        : "text-amber-200";
+
+  const dialogIsBusy = dialogStatus === "presigning" || dialogStatus === "uploading";
+
+  const dialogHelperText = useMemo(() => {
+    if (!dialogFile) return "Drag and drop Terraform files or Browse.";
+    return `${dialogFile.name} • ${prettyBytes(dialogFile.size)}`;
+  }, [dialogFile]);
+
+  const trimmedDialogUploadName = dialogUploadName.trim();
+  const normalizedDialogUploadName = trimmedDialogUploadName.toLowerCase();
+  const isDialogUploadNameBlank = trimmedDialogUploadName.length === 0;
+  const isDialogUploadNameTooLong = trimmedDialogUploadName.length > 32;
+  const isDialogUploadNameTaken =
+    !isDialogUploadNameBlank &&
+    jobs.some((job) => job.name.trim().toLowerCase() === normalizedDialogUploadName);
+  const isDialogUploadNameInvalid =
+    isDialogUploadNameBlank || isDialogUploadNameTooLong || isDialogUploadNameTaken;
+  const isDialogUploadNameVisualError =
+    (dialogUploadNameInteracted && isDialogUploadNameBlank) ||
+    isDialogUploadNameTooLong ||
+    isDialogUploadNameTaken;
+
+  const closeNewUploadDialog = useCallback(() => {
+    setIsNewUploadDialogOpen(false);
+    setDialogUploadName("");
+    setDialogUploadNameInteracted(false);
+    setDialogFile(null);
+    setDialogIsDragging(false);
+    setDialogError(null);
+    setDialogProgress(0);
+    setDialogStatus("idle");
+  }, []);
+
+  const openNewUploadDialog = useCallback(() => {
+    setIsNewUploadDialogOpen(true);
+    setDialogUploadName("");
+    setDialogUploadNameInteracted(false);
+    setDialogFile(null);
+    setDialogIsDragging(false);
+    setDialogError(null);
+    setDialogProgress(0);
+    setDialogStatus("idle");
+  }, []);
+
+  const validateAndSetDialogFile = useCallback((next: File) => {
+    if (next.size > MAX_BYTES) {
+      setDialogError(`File too large. Max is ${prettyBytes(MAX_BYTES)}.`);
+      setDialogFile(null);
+      return;
+    }
+
+    if (!isTerraformLikeFile(next)) {
+      setDialogError("Unsupported file type. Use .tf, .tfvars, .zip, .tar, .tgz.");
+      setDialogFile(null);
+      return;
+    }
+
+    setDialogError(null);
+    setDialogFile(next);
+  }, []);
+
+  const startDialogUpload = useCallback(async () => {
+    if (!dialogFile) {
+      setDialogError("Please select a file first.");
+      return;
+    }
+
+    if (isDialogUploadNameBlank) {
+      setDialogError("Terraform config name is required.");
+      return;
+    }
+
+    if (isDialogUploadNameTooLong) {
+      setDialogError("Terraform config name must be 32 characters or fewer.");
+      return;
+    }
+
+    if (isDialogUploadNameTaken) {
+      setDialogError("Terraform config name is already in use.");
+      return;
+    }
+
+    try {
+      setDialogError(null);
+      setDialogStatus("presigning");
+      setDialogProgress(0);
+
+      if (!isAuthenticated) {
+        await loginWithRedirect({
+          appState: {
+            returnTo: "/home",
+          },
+        });
+        return;
+      }
+
+      const accessToken = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+        },
+      });
+
+      const contentType =
+        getSupportedContentType(dialogFile.name) || "application/octet-stream";
+
+      const presign = await presignTerraformUpload(
+        {
+          filename: dialogFile.name,
+          name: trimmedDialogUploadName,
+          contentType,
+        },
+        accessToken,
+      );
+
+      setDialogStatus("uploading");
+
+      await uploadFileToPresignedUrl(
+        presign.url,
+        dialogFile,
+        (p: number) => {
+          setDialogProgress(p);
+        },
+        contentType,
+      );
+
+      await completeTerraformUpload(presign.uploadId, accessToken);
+
+      setDialogStatus("done");
+      await loadJobs();
+      setSuccessUploadName(trimmedDialogUploadName);
+      closeNewUploadDialog();
+      setIsUploadSuccessDialogOpen(true);
+    } catch (e: unknown) {
+      setDialogStatus("idle");
+      setDialogProgress(0);
+      setDialogError(e instanceof Error ? e.message : "Upload failed.");
+    }
+  }, [
+    dialogFile,
+    getAccessTokenSilently,
+    isDialogUploadNameBlank,
+    isDialogUploadNameTooLong,
+    isDialogUploadNameTaken,
+    isAuthenticated,
+    loadJobs,
+    loginWithRedirect,
+    closeNewUploadDialog,
+    trimmedDialogUploadName,
+  ]);
+
   return (
     <div className="min-h-screen bg-(--page-bg) text-(--text-primary) relative overflow-hidden">
       <div
@@ -163,38 +399,58 @@ export default function HomePage() {
       <Header title="Home" loggedIn />
 
       <div className="relative z-10 px-6 sm:px-10 lg:px-14 xl:px-20 pt-12 pb-20">
+        <span
+          className={`absolute top-6 right-6 sm:right-10 lg:right-14 xl:right-20 inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] tracking-[0.12em] uppercase ${awsStatusClass}`}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full bg-current ${awsConnected ? "animate-pulse" : ""}`}
+          />
+          {awsStatusLabel}
+        </span>
+
         <section className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
           <div>
             <p className="text-[11px] font-medium tracking-[0.2em] text-(--text-muted) uppercase">
-              AppLens Home
+              Default Environment
             </p>
             <h2 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-tight">
-              AppLens Dashboard
+              Dashboard
             </h2>
             <p className="mt-3 text-sm text-(--text-secondary) max-w-2xl">
               Track upload health, triage failed or in-progress runs, and jump
-              directly into the latest successful analyses.
+              directly into the latest analyses.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void loadJobs()}
-            className="inline-flex items-center gap-2 px-5 py-2 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40 opacity-90 hover:opacity-100 disabled:opacity-50"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-3.5 h-3.5" />
-                Refresh
-              </>
-            )}
-          </button>
+          <div className="flex flex-col items-start sm:items-end gap-2">
+            <div className="flex items-center gap-2">
+              <AppButton
+                onClick={openNewUploadDialog}
+                variant="outline"
+                size="compact"
+              >
+                New Upload
+              </AppButton>
+              <AppButton
+                onClick={() => void loadJobs()}
+                variant="outline"
+                size="compact"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Refresh
+                  </>
+                )}
+              </AppButton>
+            </div>
+          </div>
         </section>
 
         {error && (
@@ -299,9 +555,11 @@ export default function HomePage() {
                     className="px-5 py-4 flex items-start justify-between gap-4"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{job.uploadId}</p>
+                      <p className="text-sm font-medium truncate">
+                        {displayUploadName(job.name)}
+                      </p>
                       <p className="mt-1 text-xs text-(--text-secondary) truncate">
-                        {clipMiddle(job.sourceKey, 58)}
+                        {job.uploadId}
                       </p>
                       {job.lastError && (
                         <p className="mt-1 text-xs text-red-200 truncate">
@@ -344,7 +602,12 @@ export default function HomePage() {
                     className="px-5 py-4 flex items-center justify-between gap-4"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{job.uploadId}</p>
+                      <p className="text-sm font-medium truncate">
+                        {displayUploadName(job.name)}
+                      </p>
+                      <p className="mt-1 text-xs text-(--text-secondary) truncate">
+                        {job.uploadId}
+                      </p>
                       <p className="mt-1 text-xs text-(--text-secondary) truncate">
                         Updated {formatTimestamp(job.updatedAt)}
                       </p>
@@ -376,17 +639,16 @@ export default function HomePage() {
         {sortedJobs.length > 0 && (
           <section className="mt-6 border border-(--border) bg-black/20 backdrop-blur-sm rounded-none overflow-hidden">
             <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-6 py-3 border-b border-(--border) text-[11px] tracking-[0.12em] uppercase text-(--text-muted)">
-              <span className="col-span-3">Upload ID</span>
+              <span className="col-span-4">Upload</span>
               <span className="col-span-2">Status</span>
-              <span className="col-span-3">Source Key</span>
-              <span className="col-span-2">Artifacts</span>
+              <span className="col-span-4">Artifacts</span>
               <span className="col-span-2 text-right">Updated</span>
             </div>
 
             {sortedJobs.map((job) => {
-              const hasArtifacts = Boolean(job.planKey || job.graphKey);
               const isSucceeded =
                 normalizeUploadStatus(job.status) === "SUCCEEDED";
+              const hasArtifacts = isSucceeded;
 
               return (
                 <article
@@ -394,8 +656,11 @@ export default function HomePage() {
                   className="px-5 lg:px-6 py-4 border-b border-(--border) last:border-b-0"
                 >
                   <div className="hidden lg:grid lg:grid-cols-12 lg:gap-4 lg:items-center">
-                    <div className="col-span-3 text-sm font-medium break-all">
-                      {job.uploadId}
+                    <div className="col-span-4 text-sm font-medium break-all">
+                      <span className="block">{displayUploadName(job.name)}</span>
+                      <span className="mt-1 block text-xs font-normal text-(--text-secondary)">
+                        {job.uploadId}
+                      </span>
                     </div>
 
                     <div className="col-span-2">
@@ -406,14 +671,7 @@ export default function HomePage() {
                       </span>
                     </div>
 
-                    <div
-                      className="col-span-3 text-sm text-(--text-secondary)"
-                      title={job.sourceKey}
-                    >
-                      {clipMiddle(job.sourceKey, 44)}
-                    </div>
-
-                    <div className="col-span-2 text-sm text-(--text-secondary)">
+                    <div className="col-span-4 text-sm text-(--text-secondary)">
                       {hasArtifacts ? "Plan / Graph" : "Pending"}
                     </div>
 
@@ -424,9 +682,14 @@ export default function HomePage() {
 
                   <div className="lg:hidden space-y-3">
                     <div className="flex items-start justify-between gap-4">
-                      <p className="text-sm font-medium break-all">
-                        {job.uploadId}
-                      </p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium break-all">
+                          {displayUploadName(job.name)}
+                        </p>
+                        <p className="text-xs text-(--text-secondary) break-all">
+                          {job.uploadId}
+                        </p>
+                      </div>
                       <span
                         className={`shrink-0 inline-flex px-2.5 py-1 text-[11px] tracking-[0.12em] uppercase border rounded-none ${uploadStatusBadgeClass(job.status)}`}
                       >
@@ -450,9 +713,6 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    <p className="text-xs text-(--text-secondary) break-all">
-                      {job.sourceKey}
-                    </p>
                   </div>
 
                   {job.lastError && (
@@ -470,16 +730,16 @@ export default function HomePage() {
                         Open Dashboard
                       </Link>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteUpload(job.uploadId)}
+                    <AppButton
+                      onClick={() => setDeleteDialogUpload(job)}
                       disabled={deletingUploadId === job.uploadId}
-                      className="inline-flex items-center px-3 py-1.5 text-[11px] tracking-[0.12em] uppercase border border-red-300/40 text-red-100 hover:border-red-200/70 disabled:opacity-50"
+                      variant="danger"
+                      size="chip"
                     >
                       {deletingUploadId === job.uploadId
                         ? "Deleting..."
                         : "Delete"}
-                    </button>
+                    </AppButton>
                   </div>
                 </article>
               );
@@ -497,6 +757,225 @@ export default function HomePage() {
         )}
 
       </div>
+
+      {isNewUploadDialogOpen && (
+        <div
+          className="dashboard-expand-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/70 px-4"
+          onClick={closeNewUploadDialog}
+        >
+          <div
+            className="dashboard-expand-panel w-full max-w-2xl border border-(--border) bg-(--header-bg) p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold">New Upload</h3>
+            <p className="mt-2 text-sm text-(--text-secondary)">
+              Upload Terraform files to create a new analysis run.
+            </p>
+
+            <div className="mt-6">
+              <label
+                htmlFor="dashboard-upload-name"
+                className="block text-[11px] font-medium tracking-[0.12em] uppercase text-(--text-muted) mb-2"
+              >
+                Terraform Config Name
+              </label>
+              <input
+                id="dashboard-upload-name"
+                type="text"
+                value={dialogUploadName}
+                disabled={dialogIsBusy}
+                onChange={(e) => {
+                  setDialogUploadNameInteracted(true);
+                  setDialogUploadName(e.target.value);
+                }}
+                className={`w-full border bg-white/2 px-4 py-3 text-sm text-(--text-primary) placeholder:text-(--text-muted) focus:outline-none disabled:opacity-60 ${isDialogUploadNameVisualError
+                  ? "border-red-400/90 focus:border-red-400"
+                  : "border-(--border) focus:border-(--input-focus)"
+                  }`}
+                placeholder="default"
+              />
+              {dialogUploadNameInteracted && isDialogUploadNameBlank && (
+                <p className="mt-2 text-xs text-red-300">
+                  Name is required.
+                </p>
+              )}
+              {isDialogUploadNameTooLong && (
+                <p className="mt-2 text-xs text-red-300">
+                  Name must be 32 characters or fewer.
+                </p>
+              )}
+              {isDialogUploadNameTaken && (
+                <p className="mt-2 text-xs text-red-300">
+                  This config name is already in use.
+                </p>
+              )}
+            </div>
+
+            <div
+              className={`mt-5 border-2 border-dashed ${dialogIsDragging ? "border-white/40" : "border-white/20"
+                } bg-white/2 min-h-[260px] flex items-center justify-center text-center px-6`}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (dialogIsBusy) return;
+                setDialogIsDragging(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (dialogIsBusy) return;
+                setDialogIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDialogIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDialogIsDragging(false);
+                if (dialogIsBusy) return;
+                const dropped = e.dataTransfer.files?.[0];
+                if (dropped) validateAndSetDialogFile(dropped);
+              }}
+            >
+              <div className="w-full">
+                <div className="mx-auto w-14 h-14 border border-(--border) bg-white/3 flex items-center justify-center mb-5">
+                  <span className="text-2xl">
+                    <CloudUpload />
+                  </span>
+                </div>
+
+                <p className="text-lg font-light text-(--text-primary) mb-2">
+                  {dialogHelperText}
+                </p>
+
+                <p className="text-xs text-(--text-secondary)">
+                  Max file size: {prettyBytes(MAX_BYTES)}
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-7">
+                  <AppButton
+                    disabled={dialogIsBusy}
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="outline"
+                  >
+                    Browse
+                  </AppButton>
+                  <AppButton
+                    disabled={
+                      dialogIsBusy || !dialogFile || isDialogUploadNameInvalid
+                    }
+                    onClick={() => void startDialogUpload()}
+                    variant="primary"
+                  >
+                    {dialogStatus === "presigning"
+                      ? "Preparing..."
+                      : dialogStatus === "uploading"
+                        ? `Uploading ${dialogProgress}%`
+                        : dialogStatus === "done"
+                          ? "Uploaded"
+                          : "Upload"}
+                  </AppButton>
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".tf,.tfvars,.zip,.tar,.tgz,.tar.gz"
+                  className="hidden"
+                  onChange={(e) => {
+                    const picked = e.target.files?.[0];
+                    if (picked) validateAndSetDialogFile(picked);
+                  }}
+                />
+              </div>
+            </div>
+
+            {dialogError && (
+              <p className="mt-4 text-sm text-red-300">{dialogError}</p>
+            )}
+
+            <div className="mt-6 flex justify-end">
+              <AppButton
+                onClick={closeNewUploadDialog}
+                variant="outline"
+                size="field"
+              >
+                Close
+              </AppButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isUploadSuccessDialogOpen && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 px-4"
+          onClick={() => setIsUploadSuccessDialogOpen(false)}
+        >
+          <div
+            className="w-full max-w-md border border-(--border) bg-(--header-bg) p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold">Upload Succeeded</h3>
+            <p className="mt-2 text-sm text-(--text-secondary)">
+              Terraform config <span className="font-semibold">{successUploadName}</span> uploaded successfully.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <AppButton
+                onClick={() => setIsUploadSuccessDialogOpen(false)}
+                variant="outline"
+                size="field"
+              >
+                Close
+              </AppButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteDialogUpload && (
+        <div
+          className="dashboard-expand-backdrop fixed inset-0 z-[130] flex items-center justify-center bg-black/70 px-4"
+          onClick={closeDeleteDialog}
+        >
+          <div
+            className="dashboard-expand-panel w-full max-w-md border border-(--border) bg-(--header-bg) p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold">Delete Upload</h3>
+            <p className="mt-2 text-sm text-(--text-secondary)">
+              Delete Terraform config{" "}
+              <span className="font-semibold">
+                {displayUploadName(deleteDialogUpload.name)}
+              </span>{" "}
+              and all of its S3 artifacts?
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <AppButton
+                onClick={closeDeleteDialog}
+                variant="outline"
+                size="field"
+                disabled={deletingUploadId === deleteDialogUpload.uploadId}
+              >
+                Cancel
+              </AppButton>
+              <AppButton
+                onClick={() => void handleDeleteUpload(deleteDialogUpload.uploadId)}
+                variant="danger"
+                size="field"
+                disabled={deletingUploadId === deleteDialogUpload.uploadId}
+              >
+                {deletingUploadId === deleteDialogUpload.uploadId
+                  ? "Deleting..."
+                  : "Delete"}
+              </AppButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

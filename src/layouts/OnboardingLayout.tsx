@@ -17,7 +17,7 @@ function StepIcon({ done }: { done: boolean }) {
 export default function OnboardingLayout() {
   const { state } = useOnboarding();
 
-  const step1Done = Boolean(state.terraformUploadKey);
+  const step1Done = Boolean(state.terraformUploadId);
   const step2Done = state.awsConnected;
   const step3Done = state.contextAssigned;
 

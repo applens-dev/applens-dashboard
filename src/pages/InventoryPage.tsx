@@ -15,6 +15,7 @@ import {
   type StrideArtifact,
 } from "../types/dashboardArtifacts";
 import { normalizeUploadStatus } from "../types/uploadStatus";
+import AppButton from "../components/AppButton";
 
 type Threat = {
   category?: string;
@@ -365,13 +366,14 @@ export default function InventoryPage() {
                   className="w-full rounded-none border border-(--border) bg-black/30 px-3 py-2.5 text-sm outline-none focus:border-white/35"
                 />
                 {query.trim() ? (
-                  <button
-                    type="button"
+                  <AppButton
                     onClick={() => setQuery("")}
-                    className="shrink-0 px-4 py-2.5 text-xs uppercase tracking-[0.12em] border border-(--input-focus) hover:border-white/40"
+                    variant="outline"
+                    size="field"
+                    className="shrink-0"
                   >
                     Clear
-                  </button>
+                  </AppButton>
                 ) : null}
               </div>
             </section>
