@@ -1,6 +1,7 @@
 import Header from "../components/Header";
 import { Link } from "react-router-dom";
 import { useAuth0 } from "@auth0/auth0-react";
+import AppButton from "../components/AppButton";
 
 export default function LoginPage() {
   const {
@@ -63,8 +64,7 @@ export default function LoginPage() {
                 Continue to Onboarding
               </Link>
 
-              <button
-                type="button"
+              <AppButton
                 onClick={() =>
                   logout({
                     logoutParams: {
@@ -72,10 +72,10 @@ export default function LoginPage() {
                     },
                   })
                 }
-                className="inline-flex justify-center px-7 py-3 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40"
+                variant="outline"
               >
                 Log out
-              </button>
+              </AppButton>
             </div>
           </div>
         ) : (
@@ -86,13 +86,9 @@ export default function LoginPage() {
               </p>
             )}
 
-            <button
-              type="button"
-              onClick={handleLogin}
-              className="inline-flex px-7 py-3 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100"
-            >
+            <AppButton onClick={handleLogin} variant="primary">
               Continue with Google / Gmail
-            </button>
+            </AppButton>
           </div>
         )}
       </div>

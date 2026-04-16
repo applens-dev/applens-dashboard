@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Header from "../components/Header";
+import AppButton from "../components/AppButton";
 
 export default function LandingPage() {
   const { isAuthenticated, loginWithRedirect, logout } = useAuth0();
@@ -82,18 +83,20 @@ export default function LandingPage() {
           </ul>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <button
+            <AppButton
               onClick={scrollToContact}
-              className="px-8 py-3.5 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100"
+              variant="primary"
+              size="hero"
             >
               Request Access
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               onClick={scrollToContact}
-              className="px-8 py-3.5 border border-(--input-focus) text-(--text-primary) text-xs font-medium tracking-[0.12em] uppercase hover:border-white/40 hover:opacity-100 opacity-90"
+              variant="outline"
+              size="hero"
             >
               Contact
-            </button>
+            </AppButton>
           </div>
         </div>
       </section>
@@ -227,12 +230,9 @@ export default function LandingPage() {
                 />
               </div>
 
-              <button
-                type="submit"
-                className="mt-2 px-8 py-3.5 bg-white text-black text-xs font-medium tracking-[0.12em] uppercase hover:bg-gray-100"
-              >
+              <AppButton type="submit" variant="primary" size="hero" className="mt-2">
                 Send Message
-              </button>
+              </AppButton>
             </form>
           </div>
         </div>

@@ -1,8 +1,9 @@
 import { createContext, useContext } from "react";
 
 export type OnboardingState = {
-  terraformUploadKey?: string;
+  terraformUploadId?: string;
   terraformFilename?: string;
+  terraformUploadName?: string;
   awsConnected: boolean;
   roleArn?: string;
   contextAssigned: boolean;
@@ -10,7 +11,11 @@ export type OnboardingState = {
 
 type OnboardingContextValue = {
   state: OnboardingState;
-  setTerraformUpload: (args: { key: string; filename: string }) => void;
+  setTerraformUpload: (args: {
+    uploadId: string;
+    filename: string;
+    name: string;
+  }) => void;
   setAwsConnected: (v: boolean) => void;
   setRoleArn: (arn: string) => void;
   setContextAssigned: (v: boolean) => void;

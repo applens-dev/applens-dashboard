@@ -1,13 +1,12 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import Header from "../components/Header";
 import { useOnboarding } from "../context/OnboardingContext";
 
 function StepIcon({ done }: { done: boolean }) {
   return (
     <div
-      className={`w-5 h-5 rounded-full flex items-center justify-center border ${
-        done ? "border-white/30 bg-white/10" : "border-white/15 bg-transparent"
-      }`}
+      className={`w-5 h-5 rounded-full flex items-center justify-center border ${done ? "border-white/30 bg-white/10" : "border-white/15 bg-transparent"
+        }`}
       aria-hidden
     >
       {done ? <span className="text-[11px]">✓</span> : null}
@@ -17,9 +16,8 @@ function StepIcon({ done }: { done: boolean }) {
 
 export default function OnboardingLayout() {
   const { state } = useOnboarding();
-  const location = useLocation();
 
-  const step1Done = Boolean(state.terraformUploadKey);
+  const step1Done = Boolean(state.terraformUploadId);
   const step2Done = state.awsConnected;
   const step3Done = state.contextAssigned;
 
@@ -55,11 +53,6 @@ export default function OnboardingLayout() {
             ))}
           </ul>
 
-          <div className="mt-10 pt-8 border-t border-(--border)">
-            <p className="text-xs text-(--text-muted) leading-relaxed">
-              Current route: <span className="break-all">{location.pathname}</span>
-            </p>
-          </div>
         </aside>
 
         <main className="flex-1 min-h-[calc(100vh-73px)]">
