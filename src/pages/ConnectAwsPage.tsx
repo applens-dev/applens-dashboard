@@ -117,7 +117,6 @@ export default function ConnectAwsPage() {
           generated role ARN to enable scanning.
         </p>
 
-        {/* Step 2.1 — CloudFormation parameters */}
         <div className="mb-8 border border-(--border) bg-white/2 p-5 sm:p-6">
           <p className="text-xs tracking-[0.12em] uppercase text-(--text-muted) mb-3">
             Step 2.1
@@ -213,7 +212,10 @@ export default function ConnectAwsPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <AppButton onClick={handleDownloadTemplate} variant="primary">
+            <AppButton
+              onClick={handleDownloadTemplate}
+              variant="primary"
+            >
               <Download className="w-4 h-4" />
               Download Template
             </AppButton>
@@ -224,8 +226,55 @@ export default function ConnectAwsPage() {
           </div>
         </div>
 
-        {/* Success banner — shown when already connected */}
-        {state.awsConnected && (
+        {!state.awsConnected ? (
+          <div className="mb-8 border border-(--border) bg-white/2 p-5 sm:p-6">
+            <p className="text-xs tracking-[0.12em] uppercase text-(--text-muted) mb-3">
+              Step 2.2
+            </p>
+            <h3 className="text-lg font-semibold text-(--text-primary) mb-2">
+              Verify Role ARN
+            </h3>
+            <p className="text-sm text-(--text-secondary) font-light mb-5">
+              Paste the role ARN from your CloudFormation stack outputs.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-[11px] tracking-[0.12em] uppercase text-(--text-muted) mb-2">
+                Role ARN
+              </label>
+              <input
+                type="text"
+                placeholder="arn:aws:iam::123456789012:role/AppLensScanningRole-prod"
+                value={roleArnInput}
+                onChange={(e) => {
+                  setRoleArnInput(e.target.value);
+                  setVerifyError(null);
+                }}
+                disabled={verifying}
+                className="w-full px-4 py-3 bg-black/30 border border-(--input-border) focus:border-(--input-focus) outline-none text-sm text-(--text-primary) placeholder:text-(--text-secondary)"
+              />
+            </div>
+
+            {verifyError && (
+              <div className="mb-5 p-3 bg-red-500/10 border border-red-500/30 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-300 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-medium text-red-200">Verification Failed</p>
+                  <p className="text-xs text-red-300">{verifyError}</p>
+                </div>
+              </div>
+            )}
+
+            <AppButton
+              onClick={handleVerifyRole}
+              disabled={verifying || !roleArnInput.trim()}
+              variant="primary"
+            >
+              {verifying && <Loader className="w-4 h-4 animate-spin" />}
+              {verifying ? "Verifying..." : "Verify Connection"}
+            </AppButton>
+          </div>
+        ) : (
           <div className="mb-8 border border-green-500/30 bg-green-500/8 p-5 sm:p-6">
             <p className="text-sm text-(--text-primary) flex items-center gap-2">
               <CheckSquare className="w-5 h-5 text-green-500" />
@@ -236,59 +285,6 @@ export default function ConnectAwsPage() {
             </p>
           </div>
         )}
-
-        {/* Step 2.2 — Role ARN input (always shown so connection can be updated) */}
-        <div className="mb-8 border border-(--border) bg-white/2 p-5 sm:p-6">
-          <p className="text-xs tracking-[0.12em] uppercase text-(--text-muted) mb-3">
-            Step 2.2
-          </p>
-          <h3 className="text-lg font-semibold text-(--text-primary) mb-2">
-            {state.awsConnected ? "Update Connection" : "Verify Role ARN"}
-          </h3>
-          <p className="text-sm text-(--text-secondary) font-light mb-5">
-            Paste the role ARN from your CloudFormation stack outputs.
-          </p>
-
-          <div className="mb-4">
-            <label className="block text-[11px] tracking-[0.12em] uppercase text-(--text-muted) mb-2">
-              Role ARN
-            </label>
-            <input
-              type="text"
-              placeholder="arn:aws:iam::123456789012:role/AppLensScanningRole-prod"
-              value={roleArnInput}
-              onChange={(e) => {
-                setRoleArnInput(e.target.value);
-                setVerifyError(null);
-              }}
-              disabled={verifying}
-              className="w-full px-4 py-3 bg-black/30 border border-(--input-border) focus:border-(--input-focus) outline-none text-sm text-(--text-primary) placeholder:text-(--text-secondary)"
-            />
-          </div>
-
-          {verifyError && (
-            <div className="mb-5 p-3 bg-red-500/10 border border-red-500/30 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-300 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs font-medium text-red-200">Verification Failed</p>
-                <p className="text-xs text-red-300">{verifyError}</p>
-              </div>
-            </div>
-          )}
-
-          <AppButton
-            onClick={handleVerifyRole}
-            disabled={verifying || !roleArnInput.trim()}
-            variant="primary"
-          >
-            {verifying && <Loader className="w-4 h-4 animate-spin" />}
-            {verifying
-              ? "Verifying..."
-              : state.awsConnected
-              ? "Update Connection"
-              : "Verify Connection"}
-          </AppButton>
-        </div>
 
         {state.awsConnected && (
           <div className="flex justify-end pb-10">
