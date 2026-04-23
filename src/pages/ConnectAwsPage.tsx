@@ -18,7 +18,6 @@ export default function ConnectAwsPage() {
   const [loading, setLoading] = useState(true);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Fetch user profile on mount
   useEffect(() => {
     const fetchProfile = async () => {
       try {
