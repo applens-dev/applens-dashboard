@@ -106,15 +106,31 @@ Resources:
                                 - ecr:DescribeRepositories
                             Resource: "*"
 
+                          # Allow Inspector2 to create its service-linked role the
+                          # first time it is enabled in a region. This is a one-time
+                          # bootstrap action; subsequent enables in the same account
+                          # reuse the existing role. No condition is used because
+                          # Inspector2 does not pass iam:AWSServiceName when it
+                          # internally calls CreateServiceLinkedRole.
+                          - Sid: AllowInspector2ServiceLinkedRole
+                            Effect: Allow
+                            Action:
+                                - iam:CreateServiceLinkedRole
+                            Resource: "arn:aws:iam::*:role/aws-service-role/inspector2.amazonaws.com/AWSServiceRoleForAmazonInspector2"
+
                           # Write SBOM exports to the AppLens bucket under the sbom/ prefix
                           - Sid: S3PutSbomObjects
                             Effect: Allow
                             Action:
                                 - s3:PutObject
                             Resource:
-                                # Scoped to: sbom/<env>/<this-account-id>/<region>/*
-                                # This prevents one customer's role from writing to another
-                                # customer's prefix. The wildcard covers all regions.
+                                # Scoped to sbom/<env>/<this-account-id>/* on the provided
+                                # bucket. Inspector2 exports go directly from the service
+                                # to S3 using the customer role's credentials — the bucket
+                                # must be in the same region as Inspector2.
+                                # The customer provides the bucket ARN for their primary
+                                # region; AppLens regional buckets cover additional regions
+                                # via their own bucket policies (no customer write needed).
                                 - !Sub "${AppLensS3BucketArn}/sbom/${Environment}/${AWS::AccountId}/*"
 
                           # Manage WAF Web ACLs for automated remediation (Step 3)
